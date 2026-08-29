@@ -1005,7 +1005,7 @@ Completed Phase 1 tasks:
 
 Note on database verification:
 - Database connection and indexing foundation are implemented.
-- MongoDB Atlas live CRUD verification is still pending because the local `.env` connection URI has not yet been configured.
+-MongoDB Atlas cluster and database user are configured, and `MONGODB_URI` is stored locally in `.env` (excluded from Git). Live MongoDB Atlas CRUD verification was successfully completed through the FastAPI API by creating and retrieving patient `PAT-000003`.
 ## 26. Phase 2 — API & JSON Contracts
 
 **Status: COMPLETED — PHASE 2A & 2B IMPLEMENTED**
@@ -1041,7 +1041,7 @@ Phase 2A audit result:
 PASS — 16/16 audit items passed, 0 failures, 0 warnings.
 
 ### Phase 2B — Clinical Data, Documents, Timeline & Summary APIs
-**Status: IMPLEMENTED — LOCAL VERIFICATION COMPLETED — LIVE ATLAS CRUD PENDING**
+**Status: COMPLETED — LOCAL VERIFICATION AND LIVE ATLAS CRUD VERIFICATION COMPLETED**
 
 Implemented endpoints & functionality:
 * Patient profile update (`PATCH /api/v1/patients/{patient_id}`)
@@ -1066,9 +1066,9 @@ Verification completed:
 * Phase 2B local endpoint/routing tests — PASS
 
 Live MongoDB Atlas CRUD testing:
-PENDING
+COMPLETED
 
-The local `.env` currently contains a placeholder MongoDB connection string (`your_mongodb_connection_string_here`). MongoDB Atlas connection must be configured and live CRUD tests must be completed before claiming full database-level verification.
+The local `.env` contains the configured `MONGODB_URI` connection string (excluded from Git). FastAPI successfully connected to MongoDB Atlas, and live CRUD was verified through the API by creating and retrieving patient `PAT-000003`.
 
 ### Remaining Phase 2 Contract Endpoints (Reserved for Later Phases)
 * Doctor Workflow APIs (`GET /doctors/{id}/patients`, `GET /doctors/{id}/patients/{id}/record`, `POST /sessions/{id}/approve` — Phase 9)
@@ -1752,7 +1752,6 @@ The immediate next development phase is:
 
 Phase 3 will construct the minimum patient-facing workflow using the existing Phase 2 REST API foundation.
 
-Before or alongside Phase 3 integration, MongoDB Atlas should be configured and the backend should undergo live CRUD verification.
 
 Development sequence:
 
@@ -1764,13 +1763,13 @@ COMPLETED
 Phase 2B
 Patient, Session, Response, History,
 Document, Timeline & Summary APIs
-IMPLEMENTED
+COMPLETED
         ↓
 MongoDB Atlas Connection
-PENDING
+COMPLETED
         ↓
 Live Database CRUD Verification
-PENDING
+COMPLETED
         ↓
 Phase 3
 Basic Patient Flow — NEXT
@@ -1805,4 +1804,6 @@ One repository > Multiple parallel architectures
 Implementation verification > Assumed correctness
 
 Live database testing > Local-only verification
+
+
 
