@@ -1006,29 +1006,64 @@ Implement models/schemas
 Add indexes where required
 Test CRUD operations
 Connect models to FastAPI
-26. Phase 2 — API & JSON Contracts
-Status: NOT STARTED
+## 26. Phase 2 — API & JSON Contracts
 
-Define the communication contracts between frontend, backend, database and AI modules.
+**Status: CONTRACT DESIGN COMPLETED — IMPLEMENTATION PENDING**
 
-Tasks:
+The detailed API, JSON, AI, OCR, validation, and frontend/backend communication contracts are defined in:
 
-Define API endpoints
-Define request/response JSON structures
-Define validation rules
-Define error responses
-Define session/resume endpoints
-Define patient endpoints
-Define doctor endpoints
-Define history endpoints
-Define document endpoints
-Define summary endpoints
+`docs/API_CONTRACTS.md`
 
-Important:
+`docs/API_CONTRACTS.md` is the single technical source of truth for API and JSON communication.
 
-AI output, OCR output, database schemas and frontend expectations must use agreed JSON structures.
+The following have been defined:
 
-No module should independently invent its own data format.
+* API base structure
+* HTTP methods
+* Standard success response
+* Standard error response
+* Error codes
+* Application ID conventions
+* Date/time conventions
+* Language codes
+* Patient API contracts
+* Doctor API contracts
+* Authentication API structure
+* Session API contracts
+* Response API contracts
+* Clinical history contracts
+* Source-traceability contracts
+* Document API contracts
+* Medical information extraction contracts
+* Timeline contracts
+* Case summary contracts
+* Doctor record contracts
+* Doctor editing/approval contracts
+* Clinical question contracts
+* AI input/output contracts
+* OCR input/output contracts
+* Validation rules
+* Contract change rules
+
+### Phase 2 implementation tasks
+
+1. Create the FastAPI API structure.
+2. Create Pydantic request/response schemas.
+3. Implement standard API response and error structures.
+4. Implement database connection and required models.
+5. Implement the agreed patient/session/response/history/document/timeline/summary/doctor endpoints as appropriate for the current development phase.
+6. Ensure API structures match `docs/API_CONTRACTS.md`.
+7. Add validation for required fields, data types, enums, IDs, and dates.
+8. Add basic API testing.
+9. Verify the APIs through FastAPI Swagger/OpenAPI documentation.
+10. Update this document when Phase 2 implementation is fully tested and completed.
+
+### Important
+
+Phase 2 implementation must establish the contracts without prematurely implementing the complete AI, OCR, voice, adaptive questioning, or doctor UI features belonging to later phases.
+
+AI and OCR integrations should follow the contracts defined in `docs/API_CONTRACTS.md` when those modules are implemented.
+
 
 27. Phase 3 — Basic Patient Flow
 Status: NOT STARTED
@@ -1553,7 +1588,17 @@ Database implementation remains pending.
 
 Phase 2 — API & JSON Contracts
 
-Status: NOT STARTED
+Status: CONTRACT DESIGN COMPLETED — IMPLEMENTATION PENDING
+
+API structure defined
+JSON response format defined
+Patient/session/history contracts defined
+Document/OCR contracts defined
+AI contracts defined
+Timeline/summary contracts defined
+Doctor contracts defined
+Validation rules defined
+Detailed specification stored in docs/API_CONTRACTS.md
 
 Phase 3 — Basic Patient Flow
 
@@ -1607,28 +1652,42 @@ Phase 15 — SIH Internal Demo Preparation
 
 Status: NOT STARTED
 
-45. Immediate Next Step
+## 45. Immediate Next Step
 
-The immediate next technical step is:
+The project is now entering **Phase 2 implementation**.
 
-PHASE 2
-API & JSON Contracts
+The API and JSON contract design has been completed and documented in:
 
-Before implementing individual features, finalize:
+`docs/API_CONTRACTS.md`
 
+The immediate technical goal is to implement and test the agreed backend contracts without changing the architecture.
+
+Development sequence:
+
+```text
 Database Schema
         ↓
 API Contracts
         ↓
-JSON Contracts
+Pydantic Request/Response Schemas
         ↓
-AI Input/Output Contracts
+FastAPI Routes
         ↓
-OCR Input/Output Contracts
+Database Connection
         ↓
-Frontend Integration
+Validation
+        ↓
+API Testing
+        ↓
+Phase 2 Completion
+        ↓
+Phase 3 — Basic Patient Flow
+```
 
-This prevents different team members and AI coding tools from creating incompatible data structures.
+The implementation must follow `docs/API_CONTRACTS.md`.
+
+No developer or AI coding tool should independently create alternative JSON structures or API endpoints.
+
 
 46. Project Guiding Principles
 
