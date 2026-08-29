@@ -52,7 +52,7 @@ def check_db_connection() -> bool:
 
 def ensure_indexes(db: Optional[Database] = None) -> bool:
     """
-    Creates unique indexes for patients (patient_id) and sessions (session_id).
+    Creates unique indexes for application collections.
     Safely ignores connectivity errors if DB is unreachable.
     """
     try:
@@ -60,6 +60,15 @@ def ensure_indexes(db: Optional[Database] = None) -> bool:
             db = get_db()
         db["patients"].create_index("patient_id", unique=True)
         db["sessions"].create_index("session_id", unique=True)
+        db["responses"].create_index("response_id", unique=True)
+        db["clinical_histories"].create_index("history_id", unique=True)
+        db["clinical_histories"].create_index("session_id", unique=True)
+        db["documents"].create_index("document_id", unique=True)
+        db["extracted_information"].create_index("extraction_id", unique=True)
+        db["extracted_information"].create_index("document_id", unique=True)
+        db["timeline_events"].create_index("event_id", unique=True)
+        db["case_summaries"].create_index("summary_id", unique=True)
+        db["case_summaries"].create_index("session_id", unique=True)
         return True
     except Exception:
         return False

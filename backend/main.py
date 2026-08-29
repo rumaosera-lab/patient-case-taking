@@ -3,7 +3,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from backend.api import health_router, patient_router, session_router
+from backend.api import (
+    health_router,
+    patient_router,
+    session_router,
+    response_router,
+    history_router,
+    document_router,
+    timeline_router,
+    summary_router,
+)
 from backend.database.connection import ensure_indexes
 from backend.utils.responses import success_response
 
@@ -41,6 +50,11 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(patient_router, prefix="/api/v1")
 app.include_router(session_router, prefix="/api/v1")
+app.include_router(response_router, prefix="/api/v1")
+app.include_router(history_router, prefix="/api/v1")
+app.include_router(document_router, prefix="/api/v1")
+app.include_router(timeline_router, prefix="/api/v1")
+app.include_router(summary_router, prefix="/api/v1")
 
 
 @app.get("/")

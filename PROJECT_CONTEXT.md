@@ -981,7 +981,7 @@ Before creating a new file, existing project structure should be inspected.
 Do not rename/move architectural files without team agreement.
 
 25. Phase 1 — Database Schema & Data Model
-Status: COMPLETED
+Status: SCHEMA DESIGN COMPLETED — IMPLEMENTATION FOUNDATION COMPLETED
 
 The following collections have been finalized and implemented in PyMongo/Pydantic:
 
@@ -998,13 +998,17 @@ case_summaries
 Completed Phase 1 tasks:
 - Implemented PyMongo database connection module (`backend/database/connection.py`) with environment-driven `MONGODB_URI`.
 - Implemented Pydantic models for all 9 collections in `backend/models/`.
-- Implemented unique MongoDB indexes for `patient_id` in `patients` and `session_id` in `sessions` (`ensure_indexes()`).
+- Implemented unique MongoDB indexes for all entity IDs (`ensure_indexes()`).
 - Excluded internal MongoDB `_id` from API responses.
 - Implemented standardized database error handling (`DATABASE_ERROR` and `INTERNAL_SERVER_ERROR`).
 - Completed patient and session database integration.
+
+Note on database verification:
+- Database connection and indexing foundation are implemented.
+- MongoDB Atlas live CRUD verification is still pending because the local `.env` connection URI has not yet been configured.
 ## 26. Phase 2 — API & JSON Contracts
 
-**Status: PARTIALLY IMPLEMENTED — PHASE 2A COMPLETED**
+**Status: COMPLETED — PHASE 2A & 2B IMPLEMENTED**
 
 The detailed API, JSON, AI, OCR, validation, and frontend/backend communication contracts are defined in:
 
@@ -1012,50 +1016,63 @@ The detailed API, JSON, AI, OCR, validation, and frontend/backend communication 
 
 `docs/API_CONTRACTS.md` is the single technical source of truth for API and JSON communication.
 
-The backend foundation and Phase 2A (Patient & Session APIs) are fully implemented. Later API modules (Auth, Clinical History, Documents, Timeline, Summary, Doctor APIs) remain pending.
+The backend foundation, Phase 2A (Patient & Session APIs), and Phase 2B (Clinical Data, Documents, Timeline & Summary APIs) are fully implemented.
 
 ### Phase 2A — Patient & Session APIs
-**Status: COMPLETED**
+**Status: COMPLETED AND AUDITED**
 
 Implemented endpoints:
-
-* Health: `GET /api/v1/health`
-* Patient: `POST /api/v1/patients`, `GET /api/v1/patients/{patient_id}`
-* Session: `POST /api/v1/sessions`, `GET /api/v1/sessions/{session_id}`, `PATCH /api/v1/sessions/{session_id}`
+* Patient creation/retrieval: `POST /api/v1/patients`, `GET /api/v1/patients/{patient_id}`
+* Session creation/retrieval/update: `POST /api/v1/sessions`, `GET /api/v1/sessions/{session_id}`, `PATCH /api/v1/sessions/{session_id}`
+* Health endpoint: `GET /api/v1/health`
 
 Implemented functionality:
-* Patient registration persistence and retrieval.
-* Session creation, retrieval, and status updates.
-* Verification of patient existence prior to session creation.
-* Sequential human-readable ID generation (`PAT-000001`, `SES-000001`).
-* Unique MongoDB indexes and duplicate-ID retry handling.
-* Session status Enum validation (`IN_PROGRESS`, `PROCESSING`, `COMPLETED`, `READY_FOR_DOCTOR`, `REVIEWED`).
-* Session field immutability (`session_id`, `patient_id`, `started_at` cannot be modified via PATCH).
-* Backend-managed automatic timestamp updating for `last_updated_at`.
-* Standardized HTTP error responses (`PATIENT_NOT_FOUND`, `SESSION_NOT_FOUND`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`).
-* Exclusion of MongoDB `_id` from API responses.
+* Patient creation and retrieval
+* Session creation, retrieval, and updates
+* Sequential patient and session ID generation (`PAT-000001`, `SES-000001`)
+* Unique database indexes
+* Session status validation
+* Standard success and error response handling
+* MongoDB `_id` exclusion
+* Session field immutability (`session_id`, `patient_id`, `started_at`)
+* `last_updated_at` backend management
+
+Phase 2A audit result:
+PASS — 16/16 audit items passed, 0 failures, 0 warnings.
+
+### Phase 2B — Clinical Data, Documents, Timeline & Summary APIs
+**Status: IMPLEMENTED — LOCAL VERIFICATION COMPLETED — LIVE ATLAS CRUD PENDING**
+
+Implemented endpoints & functionality:
+* Patient profile update (`PATCH /api/v1/patients/{patient_id}`)
+* Active session lookup (`GET /api/v1/patients/{patient_id}/sessions/active`)
+* Response submission and listing (`POST/GET /api/v1/sessions/{session_id}/responses`)
+* Clinical history retrieval and update (`GET/PATCH /api/v1/sessions/{session_id}/history`)
+* Document metadata upload and retrieval (`POST /api/v1/sessions/{session_id}/documents`, `GET /api/v1/documents/{document_id}`)
+* Document extraction retrieval endpoint (`GET /api/v1/documents/{document_id}/extraction`)
+* Patient timeline retrieval (`GET /api/v1/patients/{patient_id}/timeline`)
+* Case summary draft creation and retrieval (`POST/GET /api/v1/sessions/{session_id}/summary`)
+* Sequential IDs for Phase 2B entities (`RESP-`, `HIS-`, `DOC-`, `EXT-`, `EVT-`, `SUM-`)
+* Required MongoDB unique indexes across all collections (`ensure_indexes()`)
+* Phase 2B routers registered in FastAPI
+* `python-multipart` dependency added for document file uploads
 
 Verification completed:
-* Python syntax check: PASS
-* Backend import check: PASS
-* FastAPI startup: PASS
-* Health endpoint check: PASS
-* Request validation check (HTTP 422): PASS
-* Phase 2A endpoint testing: Executed via scratch test script.
-* Read-only Phase 2 foundation audit: PASS
-* Final Phase 2A audit: PASS (16/16 checks passed)
+* Python syntax check — PASS
+* Backend import verification — PASS
+* FastAPI startup — PASS
+* OpenAPI route verification — PASS
+* Phase 2A health check — PASS
+* Phase 2B local endpoint/routing tests — PASS
 
-Important limitation note:
-* Live MongoDB CRUD testing against Atlas was not completed because the local `.env` contains placeholder credentials. Database errors are handled gracefully without application crashes.
+Live MongoDB Atlas CRUD testing:
+PENDING
 
-### Remaining Phase 2 tasks
-* Auth APIs (Phase 10)
-* Response submission & retrieval APIs
-* Clinical History APIs
-* Document upload & extraction APIs
-* Timeline APIs
-* Summary APIs
-* Doctor APIs & Approval endpoints
+The local `.env` currently contains a placeholder MongoDB connection string (`your_mongodb_connection_string_here`). MongoDB Atlas connection must be configured and live CRUD tests must be completed before claiming full database-level verification.
+
+### Remaining Phase 2 Contract Endpoints (Reserved for Later Phases)
+* Doctor Workflow APIs (`GET /doctors/{id}/patients`, `GET /doctors/{id}/patients/{id}/record`, `POST /sessions/{id}/approve` — Phase 9)
+* Authentication APIs (`POST /auth/patient/login`, `POST /auth/doctor/login` — Phase 10)
 
 ### Important
 
@@ -1556,114 +1573,210 @@ The doctor should not be required to individually verify every AI-generated fiel
 The application should prioritize relevant information rather than displaying the entire medical record on the main dashboard.
 A working baseline system must be completed before attempting advanced ML differentiation.
 44. Current Project Status
+
 Phase 0 — Repository / Workspace / Development Setup
 
 Status: COMPLETED
 
 GitHub repository established
+
 Shared project structure established
+
 VS Code workflow established
+
 Antigravity workflow established
+
 OpenCode workflow established
+
 .env.example established
+
 .env kept local
+
 Same-folder development rule established
+
+
 Phase 1 — Database Schema & Data Model
 
-Status: COMPLETED
+Status: SCHEMA DESIGN COMPLETED — IMPLEMENTATION FOUNDATION COMPLETED
 
-PyMongo database connection, Pydantic models for all 9 collections, unique indexes, and patient/session database integration are fully implemented.
+Final collections:
+
+patients
+
+doctors
+
+sessions
+
+clinical_histories
+
+responses
+
+documents
+
+extracted_information
+
+timeline_events
+
+case_summaries
+
+Database connection and indexing foundation implemented.
+
+MongoDB Atlas live CRUD verification remains pending because the Atlas connection URI has not yet been configured.
+
 
 Phase 2 — API & JSON Contracts
 
-Status: PARTIALLY IMPLEMENTED
+Status: COMPLETED — PHASE 2A & 2B IMPLEMENTED
 
-Contract specifications finalized in docs/API_CONTRACTS.md. Backend foundation and Phase 2A Patient & Session APIs completed.
+Contract specifications finalized in:
 
-Phase 2A — Patient & Session APIs
+docs/API_CONTRACTS.md
 
-Status: COMPLETED
+All Phase 2 REST API endpoints defined by the current contracts have been implemented.
 
-Patient creation/retrieval (`POST/GET /api/v1/patients`), Session creation/retrieval/updating (`POST/GET/PATCH /api/v1/sessions`), `GET /api/v1/health`, sequential ID generation, unique indexes, status enum validation, and error handling implemented and audited.
+### Phase 2A — Patient & Session APIs
+
+Status: COMPLETED AND AUDITED
+
+Implemented:
+
+- Patient creation/retrieval
+- Session creation/retrieval/update
+- Health endpoint
+- Sequential patient/session ID generation
+- Unique indexes
+- Status validation
+- Standard success/error handling
+- MongoDB `_id` exclusion
+- Session field immutability
+- `last_updated_at` backend management
+
+Endpoints:
+
+POST /api/v1/patients
+
+GET /api/v1/patients/{patient_id}
+
+POST /api/v1/sessions
+
+GET /api/v1/sessions/{session_id}
+
+PATCH /api/v1/sessions/{session_id}
+
+GET /api/v1/health
+
+Phase 2A audit result:
+
+PASS — 16/16 audit items passed, 0 failures, 0 warnings.
+
+
+### Phase 2B — Clinical Data, Documents, Timeline & Summary APIs
+
+Status: IMPLEMENTED — LOCAL VERIFICATION COMPLETED — LIVE ATLAS CRUD PENDING
+
+Implemented:
+
+- Patient profile update
+- Active session lookup
+- Patient response submission/listing
+- Clinical history retrieval/update
+- Document metadata upload/retrieval
+- Document extraction retrieval endpoint
+- Patient timeline retrieval
+- Case summary draft creation/retrieval
+- Sequential IDs for responses, histories, documents, extractions, timeline events and summaries
+- Required MongoDB unique indexes
+- Phase 2B routers registered in FastAPI
+- `python-multipart` added for multipart document uploads
+
+Phase 2B verification completed:
+
+- Python syntax check — PASS
+- Backend import verification — PASS
+- FastAPI startup — PASS
+- OpenAPI route verification — PASS
+- Phase 2A health check — PASS
+- Phase 2B local endpoint/routing tests — PASS
+
+Live MongoDB Atlas CRUD testing:
+
+PENDING
+
+The local `.env` currently contains a placeholder MongoDB connection string.
+
+MongoDB Atlas connection must be configured and live CRUD tests must be completed before claiming full database-level verification.
+
 
 Phase 3 — Basic Patient Flow
 
 Status: NOT STARTED
 
-Phase 4 — Clinical Question Engine & Adaptive Questioning
+Phase 3 will construct the minimum patient-facing workflow on top of the already implemented Phase 2 REST APIs.
 
-Status: NOT STARTED
+Initial flow:
 
-Phase 5 — Voice Input
+Registration
 
-Status: NOT STARTED
+    ↓
 
-Phase 6 — Medical Documents & OCR
+Patient Authentication
 
-Status: NOT STARTED
+    ↓
 
-Phase 7 — Patient Timeline
+Language Selection
 
-Status: NOT STARTED
+    ↓
 
-Phase 8 — AI Case Summary
+Start / Resume Session
 
-Status: NOT STARTED
+    ↓
 
-Phase 9 — Doctor Workflow
+Clinical Questions
 
-Status: NOT STARTED
+    ↓
 
-Phase 10 — Authentication & Security
+Save Responses
 
-Status: NOT STARTED
+    ↓
 
-Phase 11 — Integration
+Retrieve Session
 
-Status: NOT STARTED
-
-Phase 12 — Differentiation & ML Improvements
-
-Status: NOT STARTED
-
-Phase 13 — Testing & Evaluation
-
-Status: NOT STARTED
-
-Phase 14 — Deployment
-
-Status: NOT STARTED
-
-Phase 15 — SIH Internal Demo Preparation
-
-Status: NOT STARTED
 
 ## 45. Immediate Next Step
 
-Phase 2A has been completed and verified. The immediate next step is:
+Phase 2A and Phase 2B implementation have been completed.
+
+The immediate next development phase is:
 
 **Phase 3 — Basic Patient Flow**
 
-Phase 3 will construct the patient-facing workflow on top of the already implemented Patient and Session APIs.
+Phase 3 will construct the minimum patient-facing workflow using the existing Phase 2 REST API foundation.
+
+Before or alongside Phase 3 integration, MongoDB Atlas should be configured and the backend should undergo live CRUD verification.
 
 Development sequence:
 
 ```text
-Phase 2A (Patient & Session APIs Completed)
+Phase 2A
+Patient & Session APIs
+COMPLETED
         ↓
-Phase 3 (Basic Patient Flow — Next)
+Phase 2B
+Patient, Session, Response, History,
+Document, Timeline & Summary APIs
+IMPLEMENTED
         ↓
-Phase 4 (Clinical Question Engine & Adaptive Questioning)
+MongoDB Atlas Connection
+PENDING
         ↓
-Phase 5 (Voice Input)
+Live Database CRUD Verification
+PENDING
         ↓
-Phase 6 (Medical Documents & OCR)
+Phase 3
+Basic Patient Flow — NEXT
         ↓
-Phase 7 (Patient Timeline)
-        ↓
-Phase 8 (AI Case Summary)
-        ↓
-Phase 9 (Doctor Workflow)
+Phase 4
+Clinical Question Engine & Adaptive Questioning
 ```
 
 The implementation must follow `docs/API_CONTRACTS.md`.
@@ -1688,4 +1801,8 @@ Real evaluation > Unsupported claims
 Shared contracts > Independent implementations
 
 One repository > Multiple parallel architectures
+
+Implementation verification > Assumed correctness
+
+Live database testing > Local-only verification
 
