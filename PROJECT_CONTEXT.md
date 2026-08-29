@@ -981,9 +981,9 @@ Before creating a new file, existing project structure should be inspected.
 Do not rename/move architectural files without team agreement.
 
 25. Phase 1 — Database Schema & Data Model
-Status: SCHEMA DESIGN COMPLETED — IMPLEMENTATION PENDING
+Status: COMPLETED
 
-The following collections have been finalized:
+The following collections have been finalized and implemented in PyMongo/Pydantic:
 
 patients
 doctors
@@ -995,20 +995,16 @@ extracted_information
 timeline_events
 case_summaries
 
-Relationships have been defined.
-
-The database is the break point between the patient and doctor workflows.
-
-Next tasks:
-
-Implement database connection
-Implement models/schemas
-Add indexes where required
-Test CRUD operations
-Connect models to FastAPI
+Completed Phase 1 tasks:
+- Implemented PyMongo database connection module (`backend/database/connection.py`) with environment-driven `MONGODB_URI`.
+- Implemented Pydantic models for all 9 collections in `backend/models/`.
+- Implemented unique MongoDB indexes for `patient_id` in `patients` and `session_id` in `sessions` (`ensure_indexes()`).
+- Excluded internal MongoDB `_id` from API responses.
+- Implemented standardized database error handling (`DATABASE_ERROR` and `INTERNAL_SERVER_ERROR`).
+- Completed patient and session database integration.
 ## 26. Phase 2 — API & JSON Contracts
 
-**Status: CONTRACT DESIGN COMPLETED — IMPLEMENTATION PENDING**
+**Status: PARTIALLY IMPLEMENTED — PHASE 2A COMPLETED**
 
 The detailed API, JSON, AI, OCR, validation, and frontend/backend communication contracts are defined in:
 
@@ -1016,59 +1012,60 @@ The detailed API, JSON, AI, OCR, validation, and frontend/backend communication 
 
 `docs/API_CONTRACTS.md` is the single technical source of truth for API and JSON communication.
 
-The following have been defined:
+The backend foundation and Phase 2A (Patient & Session APIs) are fully implemented. Later API modules (Auth, Clinical History, Documents, Timeline, Summary, Doctor APIs) remain pending.
 
-* API base structure
-* HTTP methods
-* Standard success response
-* Standard error response
-* Error codes
-* Application ID conventions
-* Date/time conventions
-* Language codes
-* Patient API contracts
-* Doctor API contracts
-* Authentication API structure
-* Session API contracts
-* Response API contracts
-* Clinical history contracts
-* Source-traceability contracts
-* Document API contracts
-* Medical information extraction contracts
-* Timeline contracts
-* Case summary contracts
-* Doctor record contracts
-* Doctor editing/approval contracts
-* Clinical question contracts
-* AI input/output contracts
-* OCR input/output contracts
-* Validation rules
-* Contract change rules
+### Phase 2A — Patient & Session APIs
+**Status: COMPLETED**
 
-### Phase 2 implementation tasks
+Implemented endpoints:
 
-1. Create the FastAPI API structure.
-2. Create Pydantic request/response schemas.
-3. Implement standard API response and error structures.
-4. Implement database connection and required models.
-5. Implement the agreed patient/session/response/history/document/timeline/summary/doctor endpoints as appropriate for the current development phase.
-6. Ensure API structures match `docs/API_CONTRACTS.md`.
-7. Add validation for required fields, data types, enums, IDs, and dates.
-8. Add basic API testing.
-9. Verify the APIs through FastAPI Swagger/OpenAPI documentation.
-10. Update this document when Phase 2 implementation is fully tested and completed.
+* Health: `GET /api/v1/health`
+* Patient: `POST /api/v1/patients`, `GET /api/v1/patients/{patient_id}`
+* Session: `POST /api/v1/sessions`, `GET /api/v1/sessions/{session_id}`, `PATCH /api/v1/sessions/{session_id}`
+
+Implemented functionality:
+* Patient registration persistence and retrieval.
+* Session creation, retrieval, and status updates.
+* Verification of patient existence prior to session creation.
+* Sequential human-readable ID generation (`PAT-000001`, `SES-000001`).
+* Unique MongoDB indexes and duplicate-ID retry handling.
+* Session status Enum validation (`IN_PROGRESS`, `PROCESSING`, `COMPLETED`, `READY_FOR_DOCTOR`, `REVIEWED`).
+* Session field immutability (`session_id`, `patient_id`, `started_at` cannot be modified via PATCH).
+* Backend-managed automatic timestamp updating for `last_updated_at`.
+* Standardized HTTP error responses (`PATIENT_NOT_FOUND`, `SESSION_NOT_FOUND`, `DATABASE_ERROR`, `INTERNAL_SERVER_ERROR`).
+* Exclusion of MongoDB `_id` from API responses.
+
+Verification completed:
+* Python syntax check: PASS
+* Backend import check: PASS
+* FastAPI startup: PASS
+* Health endpoint check: PASS
+* Request validation check (HTTP 422): PASS
+* Phase 2A endpoint testing: Executed via scratch test script.
+* Read-only Phase 2 foundation audit: PASS
+* Final Phase 2A audit: PASS (16/16 checks passed)
+
+Important limitation note:
+* Live MongoDB CRUD testing against Atlas was not completed because the local `.env` contains placeholder credentials. Database errors are handled gracefully without application crashes.
+
+### Remaining Phase 2 tasks
+* Auth APIs (Phase 10)
+* Response submission & retrieval APIs
+* Clinical History APIs
+* Document upload & extraction APIs
+* Timeline APIs
+* Summary APIs
+* Doctor APIs & Approval endpoints
 
 ### Important
 
-Phase 2 implementation must establish the contracts without prematurely implementing the complete AI, OCR, voice, adaptive questioning, or doctor UI features belonging to later phases.
-
-AI and OCR integrations should follow the contracts defined in `docs/API_CONTRACTS.md` when those modules are implemented.
+Phase 2 implementation establishes contracts without prematurely implementing AI, OCR, voice, adaptive questioning, or doctor UI features belonging to later phases.
 
 
 27. Phase 3 — Basic Patient Flow
 Status: NOT STARTED
 
-Build the minimum working patient flow:
+Build the minimum working patient flow on top of the implemented Patient and Session APIs:
 
 Registration
      ↓
@@ -1411,12 +1408,14 @@ patient-case-taking/
 │   ├── requirements.txt
 │   │
 │   ├── api/
-│   │   ├── auth.py
+│   │   ├── __init__.py
+│   │   ├── health.py
 │   │   ├── patient.py
-│   │   ├── doctor.py
-│   │   ├── history.py
-│   │   ├── documents.py
-│   │   └── summary.py
+│   │   ├── session.py
+│   │   ├── auth.py (pending)
+│   │   ├── history.py (pending)
+│   │   ├── documents.py (pending)
+│   │   └── summary.py (pending)
 │   │
 │   ├── ai/
 │   │   ├── questioning/
@@ -1429,6 +1428,7 @@ patient-case-taking/
 │   │   └── timeline/
 │   │
 │   ├── models/
+│   │   ├── __init__.py
 │   │   ├── patient.py
 │   │   ├── doctor.py
 │   │   ├── session.py
@@ -1440,11 +1440,13 @@ patient-case-taking/
 │   │   └── summary.py
 │   │
 │   ├── database/
+│   │   ├── __init__.py
 │   │   └── connection.py
 │   │
 │   └── utils/
-│       ├── auth.py
-│       └── validators.py
+│       ├── __init__.py
+│       ├── id_generator.py
+│       └── responses.py
 │
 ├── uploads/
 │
@@ -1568,37 +1570,21 @@ OpenCode workflow established
 Same-folder development rule established
 Phase 1 — Database Schema & Data Model
 
-Status: SCHEMA DESIGN COMPLETED
+Status: COMPLETED
 
-Final collections:
-
-patients
-doctors
-sessions
-clinical_histories
-responses
-documents
-extracted_information
-timeline_events
-case_summaries
-
-Relationships finalized.
-
-Database implementation remains pending.
+PyMongo database connection, Pydantic models for all 9 collections, unique indexes, and patient/session database integration are fully implemented.
 
 Phase 2 — API & JSON Contracts
 
-Status: CONTRACT DESIGN COMPLETED — IMPLEMENTATION PENDING
+Status: PARTIALLY IMPLEMENTED
 
-API structure defined
-JSON response format defined
-Patient/session/history contracts defined
-Document/OCR contracts defined
-AI contracts defined
-Timeline/summary contracts defined
-Doctor contracts defined
-Validation rules defined
-Detailed specification stored in docs/API_CONTRACTS.md
+Contract specifications finalized in docs/API_CONTRACTS.md. Backend foundation and Phase 2A Patient & Session APIs completed.
+
+Phase 2A — Patient & Session APIs
+
+Status: COMPLETED
+
+Patient creation/retrieval (`POST/GET /api/v1/patients`), Session creation/retrieval/updating (`POST/GET/PATCH /api/v1/sessions`), `GET /api/v1/health`, sequential ID generation, unique indexes, status enum validation, and error handling implemented and audited.
 
 Phase 3 — Basic Patient Flow
 
@@ -1654,34 +1640,30 @@ Status: NOT STARTED
 
 ## 45. Immediate Next Step
 
-The project is now entering **Phase 2 implementation**.
+Phase 2A has been completed and verified. The immediate next step is:
 
-The API and JSON contract design has been completed and documented in:
+**Phase 3 — Basic Patient Flow**
 
-`docs/API_CONTRACTS.md`
-
-The immediate technical goal is to implement and test the agreed backend contracts without changing the architecture.
+Phase 3 will construct the patient-facing workflow on top of the already implemented Patient and Session APIs.
 
 Development sequence:
 
 ```text
-Database Schema
+Phase 2A (Patient & Session APIs Completed)
         ↓
-API Contracts
+Phase 3 (Basic Patient Flow — Next)
         ↓
-Pydantic Request/Response Schemas
+Phase 4 (Clinical Question Engine & Adaptive Questioning)
         ↓
-FastAPI Routes
+Phase 5 (Voice Input)
         ↓
-Database Connection
+Phase 6 (Medical Documents & OCR)
         ↓
-Validation
+Phase 7 (Patient Timeline)
         ↓
-API Testing
+Phase 8 (AI Case Summary)
         ↓
-Phase 2 Completion
-        ↓
-Phase 3 — Basic Patient Flow
+Phase 9 (Doctor Workflow)
 ```
 
 The implementation must follow `docs/API_CONTRACTS.md`.
