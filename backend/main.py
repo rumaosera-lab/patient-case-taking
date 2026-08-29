@@ -3,7 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
-from backend.api import health_router
+from backend.api import health_router, patient_router, session_router
+from backend.database.connection import ensure_indexes
 from backend.utils.responses import success_response
 
 # Load environment variables
@@ -16,6 +17,11 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# Ensure unique database indexes on startup
+@app.on_event("startup")
+def startup_event():
+    ensure_indexes()
 
 # Controlled CORS configuration for development
 allowed_origins = os.getenv(
@@ -31,8 +37,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API v1 router
+# Register API v1 routers
 app.include_router(health_router, prefix="/api/v1")
+app.include_router(patient_router, prefix="/api/v1")
+app.include_router(session_router, prefix="/api/v1")
 
 
 @app.get("/")
