@@ -287,6 +287,38 @@ export async function generateCaseSummary(
 }
 
 // ---------------------------------------------------------------------------
+// Timeline APIs
+// ---------------------------------------------------------------------------
+
+export interface TimelineEventItem {
+  event_id: string;
+  patient_id: string;
+  session_id?: string;
+  event_date: string;
+  event_type: string;
+  title: string;
+  description: string;
+  source_type: string;
+  source_id?: string;
+  created_at?: string;
+}
+
+export interface PatientTimelineResponse {
+  patient_id: string;
+  events: TimelineEventItem[];
+}
+
+/**
+ * Retrieve patient medical timeline events
+ * GET /api/v1/patients/{patient_id}/timeline
+ */
+export async function getPatientTimeline(
+  patientId: string
+): Promise<ApiResponse<PatientTimelineResponse>> {
+  return apiFetch<PatientTimelineResponse>(`/patients/${patientId}/timeline`);
+}
+
+// ---------------------------------------------------------------------------
 // Document Upload API
 // ---------------------------------------------------------------------------
 
@@ -297,7 +329,7 @@ export async function generateCaseSummary(
 export async function uploadPatientDocument(
   sessionId: string,
   file: File,
-  documentType: "prescription" | "lab_report" | "discharge_summary" | "medical_report" | "other"
+  documentType: "prescription" | "lab_report" | "discharge_summary" | "medical_report" | "other" = "medical_report"
 ): Promise<ApiResponse<DocumentUploadResponse>> {
   try {
     const formData = new FormData();
@@ -322,3 +354,4 @@ export async function uploadPatientDocument(
     };
   }
 }
+

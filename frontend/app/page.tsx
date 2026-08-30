@@ -8,8 +8,11 @@ import {
   submitClinicalHistory,
   generateCaseSummary,
   updateSessionStatus,
+  uploadPatientDocument,
+  getPatientTimeline,
   CaseSummaryData,
   ClinicalHistoryUpdatePayload,
+  TimelineEventItem,
 } from "@/services/patientApi";
 
 type Language = "English" | "Hindi" | "Marathi";
@@ -838,6 +841,17 @@ export default function Home() {
   const [ayushActive, setAyushActive] = useState(false);
   const [voicesLoaded, setVoicesLoaded] = useState(false);
 
+  // Document upload state (used in Step 13)
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; docId: string }[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Timeline modal state
+  const [showTimeline, setShowTimeline] = useState(false);
+  const [timelineEvents, setTimelineEvents] = useState<TimelineEventItem[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineError, setTimelineError] = useState<string | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
 
@@ -1255,6 +1269,41 @@ export default function Home() {
       setIsSubmitted(true);
     } finally {
       setIsSubmittingCase(false);
+    }
+  };
+
+  const handleUploadFile = async (file: File) => {
+    const currentSesId = sessionId;
+    if (!currentSesId) {
+      setUploadError("No active session. Please complete login first.");
+      return;
+    }
+    setIsUploading(true);
+    setUploadError(null);
+    const res = await uploadPatientDocument(currentSesId, file, "medical_report");
+    setIsUploading(false);
+    if (res.success && res.data) {
+      setUploadedFiles((prev) => [
+        ...prev,
+        { name: file.name, docId: res.data!.document_id },
+      ]);
+    } else {
+      setUploadError(res.error?.message || "Upload failed. Please try again.");
+    }
+  };
+
+  const handleOpenTimeline = async () => {
+    const currentPatId = patientId;
+    if (!currentPatId) return;
+    setShowTimeline(true);
+    setTimelineLoading(true);
+    setTimelineError(null);
+    const res = await getPatientTimeline(currentPatId);
+    setTimelineLoading(false);
+    if (res.success && res.data) {
+      setTimelineEvents(res.data.events || []);
+    } else {
+      setTimelineError("Could not load timeline. Backend may be offline.");
     }
   };
 

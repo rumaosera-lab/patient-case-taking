@@ -38,17 +38,24 @@ def get_doctor_patient_list(doctor_id: str):
                 patient_doc = db["patients"].find_one({"patient_id": pid}, {"_id": 0})
                 if patient_doc:
                     patient_items.append({
-                        "patient_id": pid,
-                        "name": patient_doc.get("name"),
-                        "gender": patient_doc.get("gender"),
-                        "date_of_birth": patient_doc.get("date_of_birth"),
-                        "phone": patient_doc.get("phone"),
-                        "preferred_language": patient_doc.get("preferred_language"),
-                        "session_id": s.get("session_id"),
-                        "status": s.get("status"),
-                        "department": s.get("department"),
-                        "started_at": s.get("started_at"),
-                        "last_updated_at": s.get("last_updated_at")
+                        "patient": {
+                            "patient_id": pid,
+                            "name": patient_doc.get("name", "Unknown Patient"),
+                            "gender": patient_doc.get("gender", "Other"),
+                            "date_of_birth": patient_doc.get("date_of_birth", "1990-01-01"),
+                            "phone": patient_doc.get("phone", ""),
+                            "preferred_language": patient_doc.get("preferred_language", "en"),
+                            "abha_id": patient_doc.get("abha_id")
+                        },
+                        "current_session": {
+                            "session_id": s.get("session_id"),
+                            "patient_id": pid,
+                            "status": s.get("status", SessionStatus.IN_PROGRESS.value),
+                            "department": s.get("department", "General Medicine"),
+                            "started_at": s.get("started_at", ""),
+                            "completed_at": s.get("completed_at"),
+                            "last_updated_at": s.get("last_updated_at", "")
+                        }
                     })
 
         # Also add any patients without sessions
@@ -58,17 +65,24 @@ def get_doctor_patient_list(doctor_id: str):
             if pid not in seen_patients:
                 seen_patients.add(pid)
                 patient_items.append({
-                    "patient_id": pid,
-                    "name": p.get("name"),
-                    "gender": p.get("gender"),
-                    "date_of_birth": p.get("date_of_birth"),
-                    "phone": p.get("phone"),
-                    "preferred_language": p.get("preferred_language"),
-                    "session_id": None,
-                    "status": None,
-                    "department": None,
-                    "started_at": None,
-                    "last_updated_at": None
+                    "patient": {
+                        "patient_id": pid,
+                        "name": p.get("name", "Unknown Patient"),
+                        "gender": p.get("gender", "Other"),
+                        "date_of_birth": p.get("date_of_birth", "1990-01-01"),
+                        "phone": p.get("phone", ""),
+                        "preferred_language": p.get("preferred_language", "en"),
+                        "abha_id": p.get("abha_id")
+                    },
+                    "current_session": {
+                        "session_id": "",
+                        "patient_id": pid,
+                        "status": SessionStatus.IN_PROGRESS.value,
+                        "department": "General Medicine",
+                        "started_at": "",
+                        "completed_at": None,
+                        "last_updated_at": ""
+                    }
                 })
 
         return success_response(data=patient_items)
