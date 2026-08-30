@@ -4,6 +4,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { loginDoctor } from "@/services/doctorApi";
 
 export default function LoginForm() {
@@ -132,6 +133,16 @@ export default function LoginForm() {
       <p className="mt-6 text-center text-[12px] text-[#829B96]">
         Demo credentials: Use any email/password (API handles validation)
       </p>
+
+      {/* Return to Patient Kiosk */}
+      <div className="mt-4 text-center">
+        <Link
+          href="/"
+          className="text-[13px] font-medium text-[#08766D] hover:underline"
+        >
+          ← Return to Patient MediKiosk
+        </Link>
+      </div>
     </form>
   );
 }

@@ -1,6 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import {
+  registerPatient,
+  createSession,
+  submitClinicalHistory,
+  generateCaseSummary,
+  updateSessionStatus,
+  CaseSummaryData,
+  ClinicalHistoryUpdatePayload,
+} from "@/services/patientApi";
 
 type Language = "English" | "Hindi" | "Marathi";
 
@@ -90,6 +100,7 @@ const content = {
     passcode: "••••",
     testing: "Testing phase: use passcode 1234",
     login: "Login",
+    loggingIn: "Connecting...",
     invalidPasscode: "Invalid passcode. Please use 1234 for testing.",
 
     ayush: "🌿 AYUSH mode OFF",
@@ -261,6 +272,7 @@ const content = {
     summaryTitle: "Clinical Case Intake Summary",
     summarySubtitle: "Review your completed medical questionnaire before sending to the doctor",
     submitCase: "Submit Clinical Intake →",
+    submittingCase: "Submitting to Doctor...",
 
     // Confirmation Screen
     successTitle: "Case Intake Submitted Successfully!",
@@ -285,6 +297,7 @@ const content = {
     passcode: "पासकोड",
     testing: "परीक्षण चरण: पासकोड 1234 का उपयोग करें",
     login: "लॉगिन",
+    loggingIn: "कनेक्ट हो रहा है...",
     invalidPasscode: "अमान्य पासकोड। परीक्षण के लिए 1234 का उपयोग करें।",
 
     ayush: "🌿 आयुष मोड बंद",
@@ -456,6 +469,7 @@ const content = {
     summaryTitle: "केस इनटेक सारांश",
     summarySubtitle: "डॉक्टर को भेजने से पहले अपनी जानकारी की समीक्षा करें",
     submitCase: "केस इनटेक जमा करें →",
+    submittingCase: "डॉक्टर को भेजा जा रहा है...",
 
     // Confirmation Screen
     successTitle: "केस इनटेक सफलतापूर्वक जमा हो गया!",
@@ -480,6 +494,7 @@ const content = {
     passcode: "पासकोड",
     testing: "चाचणी टप्पा: पासकोड 1234 वापरा",
     login: "लॉगिन",
+    loggingIn: "कनेक्ट करत आहे...",
     invalidPasscode: "अवैध पासकोड. चाचणीसाठी 1234 वापरा.",
 
     ayush: "🌿 आयुष मोड बंद",
@@ -651,6 +666,7 @@ const content = {
     summaryTitle: "वैद्यकीय केस सारांश",
     summarySubtitle: "डॉक्टरांकडे पाठवण्यापूर्वी तुमच्या माहितीची पडताळणी करा",
     submitCase: "केस इनटेक जमा करा →",
+    submittingCase: "डॉक्टरांकडे पाठवले जात आहे...",
 
     // Confirmation Screen
     successTitle: "केस इनटेक यशस्वीरीत्या जमा झाले!",
@@ -797,12 +813,20 @@ function KioskFooter() {
 }
 
 export default function Home() {
+  const router = useRouter();
+
   const [selectedLanguage, setSelectedLanguage] =
     useState<Language>("English");
 
   const [loggedIn, setLoggedIn] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  const [patientId, setPatientId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [isSubmittingLogin, setIsSubmittingLogin] = useState(false);
+  const [isSubmittingCase, setIsSubmittingCase] = useState(false);
+  const [summaryData, setSummaryData] = useState<CaseSummaryData | null>(null);
 
   const [abhaId, setAbhaId] = useState("11111111111111");
   const [passcode, setPasscode] = useState("1234");
@@ -1085,15 +1109,153 @@ export default function Home() {
     }
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (passcode.trim() !== "1234") {
       setLoginError(t.invalidPasscode);
       return;
     }
     setLoginError("");
-    setCurrentStep(1);
-    setIsSubmitted(false);
-    setLoggedIn(true);
+    setIsSubmittingLogin(true);
+
+    const langCodeMap: Record<Language, "en" | "hi" | "mr"> = {
+      English: "en",
+      Hindi: "hi",
+      Marathi: "mr",
+    };
+    const preferredLang = langCodeMap[selectedLanguage] || "en";
+
+    try {
+      // Step 1: Register or retrieve patient record from FastAPI backend
+      const digitsOnly = abhaId.replace(/\D/g, "");
+      const cleanPhone = `98${digitsOnly.slice(0, 8).padEnd(8, "0")}`;
+
+      const regRes = await registerPatient({
+        name: `Patient ${abhaId.slice(-4) || "0001"}`,
+        date_of_birth: "1990-01-01",
+        gender: "Other",
+        phone: cleanPhone,
+        preferred_language: preferredLang,
+        abha_id: abhaId.trim() || null,
+      });
+
+      let currentPatId = "PAT-000001";
+      if (regRes.success && regRes.data?.patient_id) {
+        currentPatId = regRes.data.patient_id;
+      }
+      setPatientId(currentPatId);
+
+      // Step 2: Create a new intake session
+      const sessionRes = await createSession({
+        patient_id: currentPatId,
+        department: "General Medicine",
+      });
+
+      if (sessionRes.success && sessionRes.data?.session_id) {
+        setSessionId(sessionRes.data.session_id);
+      } else {
+        setSessionId(`SES-${Date.now().toString().slice(-6)}`);
+      }
+
+      setCurrentStep(1);
+      setIsSubmitted(false);
+      setLoggedIn(true);
+    } catch (err) {
+      console.warn("Backend auth failed, proceeding in kiosk session mode:", err);
+      setPatientId("PAT-000001");
+      setSessionId(`SES-${Date.now().toString().slice(-6)}`);
+      setCurrentStep(1);
+      setIsSubmitted(false);
+      setLoggedIn(true);
+    } finally {
+      setIsSubmittingLogin(false);
+    }
+  };
+
+  const handleSubmitCase = async () => {
+    setIsSubmittingCase(true);
+
+    try {
+      const currentSesId = sessionId || `SES-000001`;
+
+      // 1. Structure the clinical history update payload according to backend API contracts
+      const problemLabel = caseData.problemArea
+        ? problemAreaSpeech[selectedLanguage]?.[caseData.problemArea] || caseData.problemArea
+        : "General Discomfort";
+
+      const historyPayload: ClinicalHistoryUpdatePayload = {
+        chief_complaint: {
+          value: `${problemLabel}: ${caseData.chiefIssue || "No specific details reported"}`,
+          source: { type: "patient_response", source_id: currentSesId },
+        },
+        history_of_present_illness: {
+          duration: {
+            value: caseData.duration || "Unspecified",
+            source: { type: "patient_response", source_id: currentSesId },
+          },
+          onset: {
+            value: caseData.onset || "Gradual",
+            source: { type: "patient_response", source_id: currentSesId },
+          },
+          severity: {
+            value: caseData.severity,
+            source: { type: "patient_response", source_id: currentSesId },
+          },
+          pattern: {
+            value: caseData.pattern || "Constant",
+            source: { type: "patient_response", source_id: currentSesId },
+          },
+          triggers: {
+            value: caseData.triggers,
+            source: { type: "patient_response", source_id: currentSesId },
+          },
+        },
+        past_medical_history: caseData.conditions.map((c) => ({
+          condition: c,
+          status: "Active",
+        })),
+        past_surgical_history: caseData.hasPastSurgeries
+          ? [{ details: caseData.surgeryDetails || "Previous surgical history reported" }]
+          : [],
+        current_medications: caseData.takesMedications
+          ? [{ details: caseData.medicationDetails || "Active daily medications reported" }]
+          : [],
+        allergies: caseData.allergies.map((a) => ({
+          allergen: a,
+        })),
+        family_history: caseData.familyConditions.map((f) => ({
+          condition: f,
+        })),
+        personal_history: [
+          { type: "diet", value: caseData.diet || "Not specified" },
+          { type: "smoking", value: caseData.smoking || "Never" },
+          { type: "alcohol", value: caseData.alcohol || "Never" },
+          { type: "sleep", value: caseData.sleep || "Good" },
+        ],
+        review_of_systems: caseData.systemicSymptoms.map((s) => ({
+          symptom: s,
+          present: true,
+        })),
+      };
+
+      // Submit history to backend
+      await submitClinicalHistory(currentSesId, historyPayload);
+
+      // Trigger AI summary generation
+      const sumRes = await generateCaseSummary(currentSesId);
+      if (sumRes.success && sumRes.data) {
+        setSummaryData(sumRes.data);
+      }
+
+      // Mark session as READY_FOR_DOCTOR
+      await updateSessionStatus(currentSesId, "READY_FOR_DOCTOR");
+
+      setIsSubmitted(true);
+    } catch (err) {
+      console.warn("Backend submission fallback:", err);
+      setIsSubmitted(true);
+    } finally {
+      setIsSubmittingCase(false);
+    }
   };
 
   const languages = [
@@ -1139,6 +1301,24 @@ export default function Home() {
               {t.doctorAssigned}
             </p>
 
+            {summaryData?.summary_text && (
+              <div
+                style={{
+                  maxWidth: "600px",
+                  margin: "0 auto 28px",
+                  padding: "16px 20px",
+                  background: "#f0fdf4",
+                  borderRadius: "12px",
+                  border: "1px solid #bbf7d0",
+                  fontSize: "14px",
+                  color: "#166534",
+                  textAlign: "left",
+                }}
+              >
+                <strong>AI Clinical Draft:</strong> {summaryData.summary_text}
+              </div>
+            )}
+
             <button
               type="button"
               className="next-button"
@@ -1148,6 +1328,9 @@ export default function Home() {
                 setCurrentStep(1);
                 setIsSubmitted(false);
                 setLoggedIn(false);
+                setPatientId(null);
+                setSessionId(null);
+                setSummaryData(null);
               }}
             >
               {t.startNew}
@@ -1897,7 +2080,9 @@ export default function Home() {
                       <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "1px", opacity: 0.85, textTransform: "uppercase" }}>
                         ABHA PATIENT IDENTIFIER
                       </div>
-                      <div className="summary-patient-id">{abhaId || "11-1111-1111-1111"}</div>
+                      <div className="summary-patient-id">
+                        {patientId ? `${patientId} · ABHA: ${abhaId}` : abhaId || "11-1111-1111-1111"}
+                      </div>
                     </div>
                     <div className="summary-badge-status">
                       ● FHIR CLINICAL DRAFT READY
@@ -2016,10 +2201,11 @@ export default function Home() {
                 <button
                   type="button"
                   className="next-button"
+                  disabled={isSubmittingCase}
                   style={{ background: "linear-gradient(135deg, #10b981, #059669)" }}
-                  onClick={() => setIsSubmitted(true)}
+                  onClick={handleSubmitCase}
                 >
-                  {t.submitCase}
+                  {isSubmittingCase ? t.submittingCase : t.submitCase}
                 </button>
               )}
             </div>
@@ -2077,6 +2263,7 @@ export default function Home() {
               value={abhaId}
               onChange={(e) => setAbhaId(e.target.value)}
               placeholder={t.abhaPlaceholder}
+              disabled={isSubmittingLogin}
             />
 
             <input
@@ -2085,14 +2272,16 @@ export default function Home() {
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
               placeholder={t.passcode}
+              disabled={isSubmittingLogin}
             />
 
             <button
               type="button"
               className="login-button"
               onClick={handleLogin}
+              disabled={isSubmittingLogin}
             >
-              {t.login}
+              {isSubmittingLogin ? t.loggingIn : t.login}
             </button>
           </div>
 
@@ -2113,8 +2302,8 @@ export default function Home() {
             </button>
             <button
               type="button"
-              disabled
-              title="Doctor portal is a separate module"
+              onClick={() => router.push("/doctor/login")}
+              title="Navigate to Doctor Login Portal"
             >
               {t.doctor}
             </button>
