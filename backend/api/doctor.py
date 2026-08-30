@@ -38,6 +38,12 @@ def get_doctor_patient_list(doctor_id: str):
                 patient_doc = db["patients"].find_one({"patient_id": pid}, {"_id": 0})
                 if patient_doc:
                     patient_items.append({
+                        "patient_id": pid,
+                        "name": patient_doc.get("name", "Unknown Patient"),
+                        "status": s.get("status", SessionStatus.IN_PROGRESS.value),
+                        "session_id": s.get("session_id", ""),
+                        "department": s.get("department", "General Medicine"),
+                        "last_updated_at": s.get("last_updated_at", ""),
                         "patient": {
                             "patient_id": pid,
                             "name": patient_doc.get("name", "Unknown Patient"),
@@ -65,6 +71,12 @@ def get_doctor_patient_list(doctor_id: str):
             if pid not in seen_patients:
                 seen_patients.add(pid)
                 patient_items.append({
+                    "patient_id": pid,
+                    "name": p.get("name", "Unknown Patient"),
+                    "status": SessionStatus.IN_PROGRESS.value,
+                    "session_id": "",
+                    "department": "General Medicine",
+                    "last_updated_at": "",
                     "patient": {
                         "patient_id": pid,
                         "name": p.get("name", "Unknown Patient"),

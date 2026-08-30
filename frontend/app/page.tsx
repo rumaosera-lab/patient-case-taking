@@ -1282,11 +1282,13 @@ export default function Home() {
     setUploadError(null);
     const res = await uploadPatientDocument(currentSesId, file, "medical_report");
     setIsUploading(false);
-    if (res.success && res.data) {
-      setUploadedFiles((prev) => [
-        ...prev,
-        { name: file.name, docId: res.data!.document_id },
-      ]);
+    if (res.success) {
+      if (res.data) {
+        setUploadedFiles((prev) => [
+          ...prev,
+          { name: file.name, docId: res.data.document_id },
+        ]);
+      }
     } else {
       setUploadError(res.error?.message || "Upload failed. Please try again.");
     }
@@ -1300,8 +1302,10 @@ export default function Home() {
     setTimelineError(null);
     const res = await getPatientTimeline(currentPatId);
     setTimelineLoading(false);
-    if (res.success && res.data) {
-      setTimelineEvents(res.data.events || []);
+    if (res.success) {
+      if (res.data) {
+        setTimelineEvents(res.data.events || []);
+      }
     } else {
       setTimelineError("Could not load timeline. Backend may be offline.");
     }

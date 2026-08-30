@@ -65,7 +65,7 @@ async def upload_document(
 
                 # Process OCR & AI medical extraction if file bytes exist
                 try:
-                    ocr_res = process_document_ocr(file_bytes, file_name, document_id)
+                    ocr_res = process_document_ocr(document_id, file_bytes, file_name)
                     extraction_id = generate_extraction_id(db)
                     ai_ext = extract_medical_information_from_document(
                         document_id=document_id,
@@ -86,11 +86,6 @@ async def upload_document(
                         "created_at": now
                     }
                     db["extracted_information"].insert_one(extraction_record)
-                    db["documents"].update_one(
-                        {"document_id": document_id},
-                        {"$set": {"processing_status": DocumentProcessingStatus.PROCESSED.value}}
-                    )
-                    doc_record["processing_status"] = DocumentProcessingStatus.PROCESSED.value
                 except Exception:
                     # OCR/Extraction failure shouldn't crash document record creation
                     pass
@@ -99,7 +94,7 @@ async def upload_document(
                     "document_id": document_id,
                     "file_name": doc_record["file_name"],
                     "document_type": doc_record["document_type"],
-                    "processing_status": doc_record["processing_status"]
+                    "processing_status": DocumentProcessingStatus.UPLOADED.value
                 }
                 return success_response(
                     data=response_data,
