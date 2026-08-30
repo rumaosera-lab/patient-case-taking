@@ -1,25 +1,29 @@
-// app/doctor/patient/[id]/page.tsx
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { use, useSyncExternalStore } from "react";
 import PatientRecordView from "@/components/doctor/PatientRecordView";
+
+function getDoctorIdSnapshot() {
+  if (typeof window === "undefined") return "DOC-000001";
+  return localStorage.getItem("doctor_id") || "DOC-000001";
+}
+
+function subscribeDoctorId(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
 
 export default function PatientRecordPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }> | { id: string };
 }) {
-  const [doctorId, setDoctorId] = useState<string>("DOC-000001");
+  const resolvedParams = "then" in params ? use(params as Promise<{ id: string }>) : params;
+  const doctorId = useSyncExternalStore(
+    subscribeDoctorId,
+    getDoctorIdSnapshot,
+    () => "DOC-000001"
+  );
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("doctor_id");
-      if (stored) {
-        setDoctorId(stored);
-      }
-    }
-  }, []);
-
-  return <PatientRecordView doctorId={doctorId} patientId={params.id} />;
+  return <PatientRecordView doctorId={doctorId} patientId={resolvedParams.id} />;
 }

@@ -1,21 +1,24 @@
-// app/doctor/dashboard/page.tsx
-
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import DoctorDashboard from "@/components/doctor/DoctorDashboard";
 
-export default function DashboardPage() {
-  const [doctorId, setDoctorId] = useState<string>("DOC-000001");
+function getDoctorIdSnapshot() {
+  if (typeof window === "undefined") return "DOC-000001";
+  return localStorage.getItem("doctor_id") || "DOC-000001";
+}
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("doctor_id");
-      if (stored) {
-        setDoctorId(stored);
-      }
-    }
-  }, []);
+function subscribeDoctorId(callback: () => void) {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+export default function DashboardPage() {
+  const doctorId = useSyncExternalStore(
+    subscribeDoctorId,
+    getDoctorIdSnapshot,
+    () => "DOC-000001"
+  );
 
   return <DoctorDashboard doctorId={doctorId} />;
 }
