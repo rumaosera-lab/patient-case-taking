@@ -40,7 +40,9 @@ def generate_summary(session_id: str, payload: Optional[CaseSummaryCreate] = Non
             patient_doc = db["patients"].find_one({"patient_id": patient_id}, {"_id": 0}) or {}
             history_doc = db["clinical_histories"].find_one({"session_id": session_id}, {"_id": 0})
             responses = list(db["responses"].find({"session_id": session_id}, {"_id": 0}).sort("timestamp", 1))
-            ai_draft = generate_case_summary_text(patient_doc, history_doc, responses)
+            extracted_docs = list(db["extracted_information"].find({"patient_id": patient_id}, {"_id": 0}))
+            timeline_events = list(db["timeline_events"].find({"patient_id": patient_id}, {"_id": 0}))
+            ai_draft = generate_case_summary_text(patient_doc, history_doc, responses, extracted_docs, timeline_events)
             summary_text = ai_draft["summary_text"]
             structured_summary = ai_draft["structured_summary"]
 
