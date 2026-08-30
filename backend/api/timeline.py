@@ -11,7 +11,7 @@ router = APIRouter()
 def get_patient_timeline(patient_id: str):
     """
     Retrieves chronological medical timeline events for a patient.
-    Follows Section 19 of docs/API_CONTRACTS.md.
+    Matching docs/API_CONTRACTS.md Section 19.3.
     """
     try:
         db = get_db()

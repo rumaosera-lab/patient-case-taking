@@ -13,8 +13,8 @@ router = APIRouter()
 @router.get("/sessions/{session_id}/history")
 def get_clinical_history(session_id: str):
     """
-    Retrieves the structured clinical history for a session.
-    Follows Section 15.2 of docs/API_CONTRACTS.md.
+    Retrieves structured clinical history for a session.
+    Matching docs/API_CONTRACTS.md Section 15.2.
     """
     try:
         db = get_db()
@@ -29,7 +29,6 @@ def get_clinical_history(session_id: str):
 
         history_doc = db["clinical_histories"].find_one({"session_id": session_id}, {"_id": 0})
         if not history_doc:
-            # If no history record has been explicitly created yet, return default empty history structure
             history_id = generate_history_id(db)
             now = datetime.now(timezone.utc).isoformat()
             default_history = {
@@ -69,8 +68,8 @@ def get_clinical_history(session_id: str):
 @router.patch("/sessions/{session_id}/history")
 def update_clinical_history(session_id: str, payload: ClinicalHistoryUpdate):
     """
-    Partially updates the structured clinical history for a session without erasing sources.
-    Follows Section 15.3 & 22 of docs/API_CONTRACTS.md.
+    Partially updates structured clinical history for a session.
+    Matching docs/API_CONTRACTS.md Section 15.3 and Section 22.
     """
     try:
         db = get_db()

@@ -75,6 +75,7 @@ def ensure_indexes(db: Optional[Database] = None) -> bool:
         db["extracted_information"].create_index("document_id")
         db["timeline_events"].create_index("event_id", unique=True)
         db["timeline_events"].create_index("patient_id")
+        db["timeline_events"].create_index("session_id")
         db["case_summaries"].create_index("summary_id", unique=True)
         db["case_summaries"].create_index("session_id", unique=True)
         return True

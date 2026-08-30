@@ -7,10 +7,12 @@ from backend.api import (
     health_router,
     patient_router,
     session_router,
+    response_router,
     history_router,
     document_router,
     timeline_router,
     summary_router,
+    interview_router,
     doctor_router,
     approval_router,
     auth_router,
@@ -52,14 +54,15 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(patient_router, prefix="/api/v1")
 app.include_router(session_router, prefix="/api/v1")
+app.include_router(response_router, prefix="/api/v1")
 app.include_router(history_router, prefix="/api/v1")
 app.include_router(document_router, prefix="/api/v1")
 app.include_router(timeline_router, prefix="/api/v1")
 app.include_router(summary_router, prefix="/api/v1")
+app.include_router(interview_router, prefix="/api/v1")
 app.include_router(doctor_router, prefix="/api/v1")
 app.include_router(approval_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
-
 
 
 @app.get("/")

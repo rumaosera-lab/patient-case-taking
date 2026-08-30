@@ -6,6 +6,8 @@ from backend.database.connection import get_db
 from backend.models.document import DocumentType, DocumentProcessingStatus
 from backend.utils.responses import success_response, error_response
 from backend.utils.id_generator import generate_document_id, generate_extraction_id
+from backend.services.ocr_service import process_document_ocr
+from backend.services.ai_service import extract_medical_information_from_document
 
 router = APIRouter()
 
@@ -13,11 +15,11 @@ router = APIRouter()
 @router.post("/sessions/{session_id}/documents", status_code=status.HTTP_201_CREATED)
 async def upload_document(
     session_id: str,
-    file: UploadFile = File(..., description="Uploaded medical document file"),
-    document_type: DocumentType = Form(..., description="Category of medical document")
+    document_type: DocumentType = Form(..., description="Category of medical document"),
+    file: UploadFile = File(..., description="Uploaded medical document file")
 ):
     """
-    Uploads a medical document for a session.
+    Uploads a medical document for a session and triggers OCR/extraction.
     Follows Section 17.4 of docs/API_CONTRACTS.md.
     """
     try:
@@ -34,6 +36,10 @@ async def upload_document(
         now = datetime.now(timezone.utc).isoformat()
         patient_id = session_doc.get("patient_id")
         doc_type_val = document_type.value if hasattr(document_type, "value") else str(document_type)
+        file_name = file.filename or "uploaded_document"
+
+        # Read file content safely
+        file_bytes = await file.read()
 
         max_retries = 3
         for _ in range(max_retries):
@@ -42,7 +48,7 @@ async def upload_document(
                 "document_id": document_id,
                 "patient_id": patient_id,
                 "session_id": session_id,
-                "file_name": file.filename or "uploaded_document",
+                "file_name": file_name,
                 "document_type": doc_type_val,
                 "file_url": None,
                 "processing_status": DocumentProcessingStatus.UPLOADED.value,
@@ -57,6 +63,38 @@ async def upload_document(
                     {"$set": {"last_updated_at": now}}
                 )
 
+                # Process OCR & AI medical extraction if file bytes exist
+                try:
+                    ocr_res = process_document_ocr(file_bytes, file_name, document_id)
+                    extraction_id = generate_extraction_id(db)
+                    ai_ext = extract_medical_information_from_document(
+                        document_id=document_id,
+                        patient_id=patient_id,
+                        document_type=doc_type_val,
+                        extracted_text=ocr_res.extracted_text
+                    )
+                    extraction_record = {
+                        "extraction_id": extraction_id,
+                        "document_id": document_id,
+                        "patient_id": patient_id,
+                        "diagnoses": ai_ext.get("diagnoses", []),
+                        "medications": ai_ext.get("medications", []),
+                        "investigations": ai_ext.get("investigations", []),
+                        "procedures": ai_ext.get("procedures", []),
+                        "extracted_text": ocr_res.extracted_text,
+                        "confidence": ai_ext.get("confidence", 0.9),
+                        "created_at": now
+                    }
+                    db["extracted_information"].insert_one(extraction_record)
+                    db["documents"].update_one(
+                        {"document_id": document_id},
+                        {"$set": {"processing_status": DocumentProcessingStatus.PROCESSED.value}}
+                    )
+                    doc_record["processing_status"] = DocumentProcessingStatus.PROCESSED.value
+                except Exception:
+                    # OCR/Extraction failure shouldn't crash document record creation
+                    pass
+
                 response_data = {
                     "document_id": document_id,
                     "file_name": doc_record["file_name"],
@@ -65,6 +103,7 @@ async def upload_document(
                 }
                 return success_response(
                     data=response_data,
+                    message="Document uploaded successfully",
                     status_code=status.HTTP_201_CREATED
                 )
             except DuplicateKeyError:
@@ -72,7 +111,7 @@ async def upload_document(
 
         return error_response(
             code="DUPLICATE_RESOURCE",
-            message="Failed to generate unique document ID. Please try again.",
+            message="Failed to generate unique document ID due to high concurrency. Please try again.",
             status_code=status.HTTP_409_CONFLICT
         )
 
@@ -93,8 +132,8 @@ async def upload_document(
 @router.get("/documents/{document_id}")
 def get_document(document_id: str):
     """
-    Retrieves metadata for an uploaded document.
-    Follows Section 17.5 of docs/API_CONTRACTS.md.
+    Retrieves document metadata by document_id.
+    Matching docs/API_CONTRACTS.md Section 17.5.
     """
     try:
         db = get_db()
@@ -126,11 +165,10 @@ def get_document(document_id: str):
 def get_document_extraction(document_id: str):
     """
     Retrieves structured medical information extracted from a document.
-    Follows Section 17.6 & 18 of docs/API_CONTRACTS.md.
+    Matching docs/API_CONTRACTS.md Section 17.6 & Section 18.
     """
     try:
         db = get_db()
-        # Verify document exists
         doc = db["documents"].find_one({"document_id": document_id})
         if not doc:
             return error_response(

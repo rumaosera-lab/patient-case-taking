@@ -8,6 +8,8 @@ class InputType(str, Enum):
     VOICE = "voice"
     TEXT = "text"
     TOUCH = "touch"
+    YES_NO = "yes_no"
+    MULTIPLE_CHOICE = "multiple_choice"
 
 
 class ResponseBase(BaseModel):

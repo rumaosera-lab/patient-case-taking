@@ -3,7 +3,7 @@ from fastapi import APIRouter, status
 from pymongo.errors import PyMongoError, DuplicateKeyError
 
 from backend.database.connection import get_db
-from backend.models.patient import PatientCreate, PatientUpdate, Patient
+from backend.models.patient import PatientCreate, PatientUpdate
 from backend.models.session import SessionStatus
 from backend.utils.responses import success_response, error_response
 from backend.utils.id_generator import generate_patient_id
@@ -31,7 +31,6 @@ def create_patient(payload: PatientCreate):
             
             try:
                 db["patients"].insert_one(patient_data.copy())
-                # Return standard success response matching API_CONTRACTS.md Section 10.1
                 response_data = {
                     "patient_id": patient_id,
                     "name": patient_data["name"],
@@ -149,10 +148,10 @@ def update_patient(patient_id: str, payload: PatientUpdate):
 def get_active_session(patient_id: str):
     """
     Retrieves the active (IN_PROGRESS) session for a patient, if one exists.
+    Follows Section 13.6 of docs/API_CONTRACTS.md.
     """
     try:
         db = get_db()
-        # Verify patient exists
         patient = db["patients"].find_one({"patient_id": patient_id})
         if not patient:
             return error_response(
@@ -195,4 +194,3 @@ def get_active_session(patient_id: str):
             message=f"An unexpected error occurred: {str(e)}",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-

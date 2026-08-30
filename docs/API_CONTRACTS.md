@@ -1089,7 +1089,9 @@ The LLM must not independently control the entire interview.
   "question_text": "Where exactly do you feel the pain?",
   "input_type": "text",
   "required": true,
-  "options": null
+  "options": null,
+  "condition": null,
+  "help_text": null
 }
 ```
 
@@ -1102,9 +1104,143 @@ For a yes/no question:
   "question_text": "Does the pain move to another part of your body?",
   "input_type": "yes_no",
   "required": true,
-  "options": null
+  "options": null,
+  "condition": null,
+  "help_text": null
 }
 ```
+
+`field` values follow Section 15.1 clinical history fields plus the HPI sub-fields (`onset`, `duration`, `location`, `character`, `radiation`, `aggravating_factors`, `relieving_factors`, `associated_symptoms`).
+
+`input_type` values: `text`, `yes_no`, `multiple_choice`, `voice`, `touch`.
+
+## Conditional follow-up questions
+
+A follow-up question may be gated by a `condition` rule evaluated against a previously recorded answer:
+
+```json
+{
+  "question_id": "Q-GEN-PMH-DETAIL",
+  "field": "past_medical_history",
+  "question_text": "Please tell me about your past illnesses and when they occurred.",
+  "input_type": "text",
+  "required": true,
+  "options": null,
+  "condition": {
+    "question_id": "Q-GEN-PMH-YN",
+    "equals_any": ["yes", "y", "haan", "ha", "haa", "ji haan", "hmm"]
+  },
+  "help_text": null
+}
+```
+
+Condition semantics:
+
+```text
+reference only (question_id or field) -> met when that answer is recorded
+equals                                    -> recorded answer equals the value (case-insensitive)
+equals_any                                -> recorded answer equals any listed value (case-insensitive)
+contains                                  -> recorded answer contains the text (case-insensitive)
+```
+
+Answer matching is lenient: values such as `"haan"`, `"Haan, kyun nahi"` and `"yes it does"` all match a yes-type matcher.
+
+## 24.1 Get Next Question
+
+```text
+GET /api/v1/sessions/{session_id}/next-question
+```
+
+Returns the next question to ask for an active session. The framework (not the LLM) decides the next question from the recorded responses:
+
+```text
+1. chief complaint (if not yet covered)
+2. matching complaint template HPI questions in order
+3. general clinical history questions in order
+4. complete when nothing remains
+```
+
+### 200 Response
+
+```json
+{
+  "success": true,
+  "data": {
+    "question": {
+      "question_id": "Q-CHEST-001",
+      "field": "onset",
+      "question_text": "When did the chest pain first start?",
+      "input_type": "text",
+      "required": true,
+      "options": null,
+      "condition": null,
+      "help_text": null
+    },
+    "interview_complete": false,
+    "active_complaint": "chest pain",
+    "completed_fields": ["chief_complaint"]
+  }
+}
+```
+
+When every required question is covered:
+
+```json
+{
+  "success": true,
+  "data": {
+    "question": null,
+    "interview_complete": true,
+    "active_complaint": null,
+    "completed_fields": ["chief_complaint", "onset", "duration", "..."]
+  }
+}
+```
+
+### 404 Response
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "SESSION_NOT_FOUND",
+    "message": "Session with ID 'SES-999999' not found"
+  }
+}
+```
+
+## 24.2 Get Clinical Question Framework
+
+```text
+GET /api/v1/clinical/questions
+```
+
+Returns the full structured question bank:
+
+```json
+{
+  "success": true,
+  "data": {
+    "chief_complaint_question": { "...": "question object" },
+    "general_questions": ["question objects"],
+    "complaint_templates": [
+      {
+        "complaint": "chest pain",
+        "keywords": ["chest pain", "chest", "sine dard", "..."],
+        "questions": ["question objects"]
+      }
+    ],
+    "section_by_field": {
+      "chief_complaint": "chief_complaint",
+      "duration": "history_of_present_illness",
+      "current_medications": "current_medications",
+      "...": "..."
+    }
+  }
+}
+```
+
+Built-in complaint templates: `chest pain`, `abdominal pain`, `headache`, `back pain`, `fever`, `cough`, `diabetes`, `hypertension`. Keywords include plain English and basic Hindi/Hinglish terms so the complaint is detected from the multilingual chief complaint.
 
 The clinical framework determines which information is required.
 
@@ -1137,10 +1273,33 @@ Gemini must receive controlled inputs.
   "extracted_fields": {
     "duration": "2 days"
   },
+  "interpreted_fields": [
+    {
+      "field": "duration",
+      "value": "2 days",
+      "confidence": 0.9,
+      "source": {
+        "type": "patient_response",
+        "response_id": "RESP-000009",
+        "question_id": "Q-CHEST-002"
+      }
+    }
+  ],
   "unmentioned_fields": [],
-  "confidence": 0.95
+  "confidence": 0.9,
+  "source": {
+    "type": "patient_response",
+    "response_id": "RESP-000009",
+    "question_id": "Q-CHEST-002"
+  }
 }
 ```
+
+`extracted_fields` is the backward-compatible flat `{field: value}` mapping.
+
+`interpreted_fields` additionally carries a per-field extraction confidence (0–1) and the originating response/question reference for traceability.
+
+If an expected field is not present in the answer it is listed in `unmentioned_fields` and omitted from `extracted_fields`.
 
 The backend must validate AI output before using it.
 
