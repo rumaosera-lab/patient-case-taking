@@ -86,6 +86,29 @@ async def upload_document(
                         "created_at": now
                     }
                     db["extracted_information"].insert_one(extraction_record)
+
+                    # Extract dated timeline events if text is present
+                    try:
+                        from backend.services.ocr.document_processor import extract_timeline_candidates
+                        from backend.utils.id_generator import generate_event_id
+                        if ocr_res.extracted_text:
+                            candidates = extract_timeline_candidates(document_id, ocr_res.extracted_text)
+                            for cand in candidates:
+                                evt_id = generate_event_id(db)
+                                db["timeline_events"].insert_one({
+                                    "event_id": evt_id,
+                                    "patient_id": patient_id,
+                                    "session_id": session_id,
+                                    "event_date": cand["event_date"],
+                                    "event_type": cand["event_type"],
+                                    "title": cand["title"],
+                                    "description": cand["description"],
+                                    "source_type": "document",
+                                    "source_id": document_id,
+                                    "created_at": now
+                                })
+                    except Exception:
+                        pass
                 except Exception:
                     # OCR/Extraction failure shouldn't crash document record creation
                     pass
