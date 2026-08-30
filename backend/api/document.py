@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
-from fastapi import APIRouter, status, Form, UploadFile, File
+from fastapi import APIRouter, File, Form, UploadFile, status
 from pymongo.errors import PyMongoError, DuplicateKeyError
 
 from backend.database.connection import get_db
 from backend.models.document import DocumentType, DocumentProcessingStatus
 from backend.utils.responses import success_response, error_response
-from backend.utils.id_generator import generate_document_id
+from backend.utils.id_generator import generate_document_id, generate_extraction_id
 
 router = APIRouter()
 
@@ -13,16 +13,15 @@ router = APIRouter()
 @router.post("/sessions/{session_id}/documents", status_code=status.HTTP_201_CREATED)
 async def upload_document(
     session_id: str,
-    document_type: DocumentType = Form(...),
-    file: UploadFile = File(...)
+    file: UploadFile = File(..., description="Uploaded medical document file"),
+    document_type: DocumentType = Form(..., description="Category of medical document")
 ):
     """
-    Uploads document file metadata for a session.
-    Matching docs/API_CONTRACTS.md Section 17.4.
+    Uploads a medical document for a session.
+    Follows Section 17.4 of docs/API_CONTRACTS.md.
     """
     try:
         db = get_db()
-        
         # Verify session exists
         session_doc = db["sessions"].find_one({"session_id": session_id})
         if not session_doc:
@@ -33,33 +32,39 @@ async def upload_document(
             )
 
         now = datetime.now(timezone.utc).isoformat()
-        file_name = file.filename or "uploaded_document"
-        patient_id = session_doc["patient_id"]
+        patient_id = session_doc.get("patient_id")
+        doc_type_val = document_type.value if hasattr(document_type, "value") else str(document_type)
 
         max_retries = 3
         for _ in range(max_retries):
-            doc_id = generate_document_id(db)
-            doc_data = {
-                "document_id": doc_id,
+            document_id = generate_document_id(db)
+            doc_record = {
+                "document_id": document_id,
                 "patient_id": patient_id,
                 "session_id": session_id,
-                "file_name": file_name,
-                "document_type": document_type.value,
+                "file_name": file.filename or "uploaded_document",
+                "document_type": doc_type_val,
                 "file_url": None,
                 "processing_status": DocumentProcessingStatus.UPLOADED.value,
                 "uploaded_at": now
             }
 
             try:
-                db["documents"].insert_one(doc_data.copy())
-                response_payload = {
-                    "document_id": doc_id,
-                    "file_name": file_name,
-                    "document_type": document_type.value,
-                    "processing_status": DocumentProcessingStatus.UPLOADED.value
+                db["documents"].insert_one(doc_record.copy())
+                # Update session last_updated_at
+                db["sessions"].update_one(
+                    {"session_id": session_id},
+                    {"$set": {"last_updated_at": now}}
+                )
+
+                response_data = {
+                    "document_id": document_id,
+                    "file_name": doc_record["file_name"],
+                    "document_type": doc_record["document_type"],
+                    "processing_status": doc_record["processing_status"]
                 }
                 return success_response(
-                    data=response_payload,
+                    data=response_data,
                     status_code=status.HTTP_201_CREATED
                 )
             except DuplicateKeyError:
@@ -67,7 +72,7 @@ async def upload_document(
 
         return error_response(
             code="DUPLICATE_RESOURCE",
-            message="Failed to generate unique document ID due to high concurrency. Please try again.",
+            message="Failed to generate unique document ID. Please try again.",
             status_code=status.HTTP_409_CONFLICT
         )
 
@@ -88,21 +93,20 @@ async def upload_document(
 @router.get("/documents/{document_id}")
 def get_document(document_id: str):
     """
-    Retrieves document metadata by document_id.
-    Matching docs/API_CONTRACTS.md Section 17.5.
+    Retrieves metadata for an uploaded document.
+    Follows Section 17.5 of docs/API_CONTRACTS.md.
     """
     try:
         db = get_db()
-        doc_data = db["documents"].find_one({"document_id": document_id}, {"_id": 0})
-        
-        if not doc_data:
+        doc = db["documents"].find_one({"document_id": document_id}, {"_id": 0})
+        if not doc:
             return error_response(
                 code="DOCUMENT_NOT_FOUND",
                 message=f"Document with ID '{document_id}' not found",
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
-        return success_response(data=doc_data)
+        return success_response(data=doc)
 
     except PyMongoError as e:
         return error_response(
@@ -121,39 +125,40 @@ def get_document(document_id: str):
 @router.get("/documents/{document_id}/extraction")
 def get_document_extraction(document_id: str):
     """
-    Retrieves medical information extracted from a document.
-    Matching docs/API_CONTRACTS.md Section 17.6 & Section 18.
+    Retrieves structured medical information extracted from a document.
+    Follows Section 17.6 & 18 of docs/API_CONTRACTS.md.
     """
     try:
         db = get_db()
-        
         # Verify document exists
-        doc_data = db["documents"].find_one({"document_id": document_id})
-        if not doc_data:
+        doc = db["documents"].find_one({"document_id": document_id})
+        if not doc:
             return error_response(
                 code="DOCUMENT_NOT_FOUND",
                 message=f"Document with ID '{document_id}' not found",
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
-        extraction_data = db["extracted_information"].find_one({"document_id": document_id}, {"_id": 0})
-        
-        if not extraction_data:
-            empty_extraction = {
-                "extraction_id": None,
+        extraction = db["extracted_information"].find_one({"document_id": document_id}, {"_id": 0})
+        if not extraction:
+            now = datetime.now(timezone.utc).isoformat()
+            extraction_id = generate_extraction_id(db)
+            default_extraction = {
+                "extraction_id": extraction_id,
                 "document_id": document_id,
-                "patient_id": doc_data["patient_id"],
+                "patient_id": doc.get("patient_id"),
                 "diagnoses": [],
                 "medications": [],
                 "investigations": [],
                 "procedures": [],
                 "extracted_text": None,
                 "confidence": None,
-                "created_at": None
+                "created_at": now
             }
-            return success_response(data=empty_extraction)
+            db["extracted_information"].insert_one(default_extraction.copy())
+            extraction = db["extracted_information"].find_one({"document_id": document_id}, {"_id": 0})
 
-        return success_response(data=extraction_data)
+        return success_response(data=extraction)
 
     except PyMongoError as e:
         return error_response(
