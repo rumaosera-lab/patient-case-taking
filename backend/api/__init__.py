@@ -6,6 +6,7 @@ from .history import router as history_router
 from .document import router as document_router
 from .timeline import router as timeline_router
 from .summary import router as summary_router
+from .interview import router as interview_router
 
 __all__ = [
     "health_router",
@@ -16,4 +17,5 @@ __all__ = [
     "document_router",
     "timeline_router",
     "summary_router",
+    "interview_router",
 ]
