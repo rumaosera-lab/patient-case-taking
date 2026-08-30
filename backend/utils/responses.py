@@ -2,8 +2,11 @@ from typing import Any, Optional
 from fastapi.responses import JSONResponse
 
 
+_UNSET = object()
+
+
 def success_response(
-    data: Any = None,
+    data: Any = _UNSET,
     message: Optional[str] = None,
     status_code: int = 200
 ) -> JSONResponse:
@@ -12,7 +15,7 @@ def success_response(
     """
     content = {
         "success": True,
-        "data": data if data is not None else {}
+        "data": {} if data is _UNSET else data
     }
     if message is not None:
         content["message"] = message
