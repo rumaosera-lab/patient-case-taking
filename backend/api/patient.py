@@ -3,7 +3,8 @@ from fastapi import APIRouter, status
 from pymongo.errors import PyMongoError, DuplicateKeyError
 
 from backend.database.connection import get_db
-from backend.models.patient import PatientCreate, Patient
+from backend.models.patient import PatientCreate, PatientUpdate, Patient
+from backend.models.session import SessionStatus
 from backend.utils.responses import success_response, error_response
 from backend.utils.id_generator import generate_patient_id
 
@@ -98,3 +99,100 @@ def get_patient(patient_id: str):
             message=f"An unexpected error occurred: {str(e)}",
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+@router.patch("/patients/{patient_id}")
+def update_patient(patient_id: str, payload: PatientUpdate):
+    """
+    Partially updates an existing patient record.
+    """
+    try:
+        db = get_db()
+        existing = db["patients"].find_one({"patient_id": patient_id})
+        if not existing:
+            return error_response(
+                code="PATIENT_NOT_FOUND",
+                message=f"Patient with ID '{patient_id}' not found",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        update_data = payload.model_dump(exclude_unset=True)
+        if update_data:
+            now = datetime.now(timezone.utc).isoformat()
+            update_data["updated_at"] = now
+            db["patients"].update_one(
+                {"patient_id": patient_id},
+                {"$set": update_data}
+            )
+
+        updated_patient = db["patients"].find_one({"patient_id": patient_id}, {"_id": 0})
+        return success_response(
+            data=updated_patient,
+            message="Patient updated successfully"
+        )
+
+    except PyMongoError as e:
+        return error_response(
+            code="DATABASE_ERROR",
+            message=f"Database operation failed: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message=f"An unexpected error occurred: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@router.get("/patients/{patient_id}/sessions/active")
+def get_active_session(patient_id: str):
+    """
+    Retrieves the active (IN_PROGRESS) session for a patient, if one exists.
+    """
+    try:
+        db = get_db()
+        # Verify patient exists
+        patient = db["patients"].find_one({"patient_id": patient_id})
+        if not patient:
+            return error_response(
+                code="PATIENT_NOT_FOUND",
+                message=f"Patient with ID '{patient_id}' not found",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        active_session = db["sessions"].find_one(
+            {
+                "patient_id": patient_id,
+                "status": SessionStatus.IN_PROGRESS.value
+            },
+            {"_id": 0},
+            sort=[("last_updated_at", -1), ("started_at", -1)]
+        )
+
+        if not active_session:
+            return success_response(
+                data=None,
+                message="No active session found"
+            )
+
+        response_data = {
+            "session_id": active_session["session_id"],
+            "status": active_session["status"],
+            "last_updated_at": active_session.get("last_updated_at", active_session.get("started_at"))
+        }
+        return success_response(data=response_data)
+
+    except PyMongoError as e:
+        return error_response(
+            code="DATABASE_ERROR",
+            message=f"Database operation failed: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message=f"An unexpected error occurred: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+

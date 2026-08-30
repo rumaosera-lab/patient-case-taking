@@ -52,14 +52,31 @@ def check_db_connection() -> bool:
 
 def ensure_indexes(db: Optional[Database] = None) -> bool:
     """
-    Creates unique indexes for patients (patient_id) and sessions (session_id).
+    Creates indexes across all application collections.
     Safely ignores connectivity errors if DB is unreachable.
     """
     try:
         if db is None:
             db = get_db()
+        # Primary application ID unique indexes
         db["patients"].create_index("patient_id", unique=True)
+        db["doctors"].create_index("doctor_id", unique=True)
+        db["doctors"].create_index("email", unique=True)
         db["sessions"].create_index("session_id", unique=True)
+        db["sessions"].create_index("patient_id")
+        db["responses"].create_index("response_id", unique=True)
+        db["responses"].create_index("session_id")
+        db["clinical_histories"].create_index("history_id", unique=True)
+        db["clinical_histories"].create_index("session_id", unique=True)
+        db["documents"].create_index("document_id", unique=True)
+        db["documents"].create_index("session_id")
+        db["documents"].create_index("patient_id")
+        db["extracted_information"].create_index("extraction_id", unique=True)
+        db["extracted_information"].create_index("document_id")
+        db["timeline_events"].create_index("event_id", unique=True)
+        db["timeline_events"].create_index("patient_id")
+        db["case_summaries"].create_index("summary_id", unique=True)
+        db["case_summaries"].create_index("session_id", unique=True)
         return True
     except Exception:
         return False
