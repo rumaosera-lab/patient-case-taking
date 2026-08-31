@@ -137,29 +137,32 @@ def extract_medical_info(
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not configured in environment.")
 
-    model_name = os.getenv("GEMINI_MODEL", GEMINI_MODEL_NAME)
     prompt = EXTRACTION_PROMPT_TEMPLATE.format(raw_text=raw_text)
+    candidate_models = [
+        os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+    ]
 
     response_text = None
-    try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt
-        )
-        if response and response.text:
-            response_text = response.text
-    except Exception:
+    seen_models = set()
+    for model_name in candidate_models:
+        if not model_name or model_name in seen_models:
+            continue
+        seen_models.add(model_name)
         try:
-            import google.generativeai as legacy_genai
-            legacy_genai.configure(api_key=api_key)
-            model = legacy_genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
             if response and response.text:
                 response_text = response.text
-        except Exception as e:
-            raise e
+                break
+        except Exception:
+            continue
 
     if not response_text:
         raise ValueError("Gemini returned an empty response during medical extraction")
@@ -220,29 +223,32 @@ def extract_timeline_candidates(document_id: str, raw_text: str) -> List[Dict[st
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not configured in environment.")
 
-    model_name = os.getenv("GEMINI_MODEL", GEMINI_MODEL_NAME)
     prompt = TIMELINE_PROMPT_TEMPLATE.format(raw_text=raw_text)
+    candidate_models = [
+        os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+        "gemini-3.5-flash",
+        "gemini-3.6-flash",
+        "gemini-3.7-flash",
+    ]
 
     response_text = None
-    try:
-        from google import genai
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt
-        )
-        if response and response.text:
-            response_text = response.text
-    except Exception:
+    seen_models = set()
+    for model_name in candidate_models:
+        if not model_name or model_name in seen_models:
+            continue
+        seen_models.add(model_name)
         try:
-            import google.generativeai as legacy_genai
-            legacy_genai.configure(api_key=api_key)
-            model = legacy_genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt
+            )
             if response and response.text:
                 response_text = response.text
-        except Exception as e:
-            raise e
+                break
+        except Exception:
+            continue
 
     if not response_text:
         return []

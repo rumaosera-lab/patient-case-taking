@@ -64,18 +64,31 @@ def extract_information_from_response(payload: AIExtractionInput) -> AIExtractio
                 f"   - unmentioned_fields: list of expected fields not mentioned\n"
                 f"   - confidence: float between 0.0 and 1.0\n"
             )
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=dict(response_mime_type="application/json")
-            )
-            data = json.loads(response.text)
-            return AIExtractionOutput(
-                extracted_fields=data.get("extracted_fields", {}),
-                unmentioned_fields=data.get("unmentioned_fields", []),
-                confidence=data.get("confidence", 0.95)
-            )
+            candidate_models = [
+                os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+                "gemini-3.5-flash",
+                "gemini-3.6-flash",
+                "gemini-3.7-flash",
+            ]
+            seen_models = set()
+            for model_name in candidate_models:
+                if not model_name or model_name in seen_models:
+                    continue
+                seen_models.add(model_name)
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=dict(response_mime_type="application/json")
+                    )
+                    data = json.loads(response.text)
+                    return AIExtractionOutput(
+                        extracted_fields=data.get("extracted_fields", {}),
+                        unmentioned_fields=data.get("unmentioned_fields", []),
+                        confidence=data.get("confidence", 0.95)
+                    )
+                except Exception:
+                    continue
         except Exception:
             pass
 
@@ -122,13 +135,26 @@ def extract_medical_information_from_document(
                 f"- procedures: list of strings\n"
                 f"- confidence: float between 0.0 and 1.0\n"
             )
-            model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=dict(response_mime_type="application/json")
-            )
-            return json.loads(response.text)
+            candidate_models = [
+                os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+                "gemini-3.5-flash",
+                "gemini-3.6-flash",
+                "gemini-3.7-flash",
+            ]
+            seen_models = set()
+            for model_name in candidate_models:
+                if not model_name or model_name in seen_models:
+                    continue
+                seen_models.add(model_name)
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=dict(response_mime_type="application/json")
+                    )
+                    return json.loads(response.text)
+                except Exception:
+                    continue
         except Exception:
             pass
 

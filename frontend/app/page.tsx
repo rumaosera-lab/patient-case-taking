@@ -269,6 +269,11 @@ const content = {
     rep_portal_sub: "Available on clinic record system",
     rep_none: "🚫 No previous medical records",
     rep_none_sub: "First time consultation",
+    uploadTitle: "Upload Medical Documents",
+    uploadSubtitle: "Upload prescription, lab report, or discharge summary (PDF, JPG, PNG)",
+    uploadButton: "Choose Document / File to Upload",
+    uploading: "Uploading & processing document...",
+    uploadedTitle: "Uploaded Documents",
 
     // Step 14
     step14: "STEP 14 OF 14",
@@ -466,6 +471,11 @@ const content = {
     rep_portal_sub: "सिस्टम में उपलब्ध है",
     rep_none: "🚫 कोई पूर्व रिपोर्ट नहीं",
     rep_none_sub: "पहली बार परामर्श",
+    uploadTitle: "मेडिकल दस्तावेज अपलोड करें",
+    uploadSubtitle: "पर्ची, लैब रिपोर्ट या डिस्चार्ज समरी अपलोड करें (PDF, JPG, PNG)",
+    uploadButton: "अपलोड करने के लिए फाइल चुनें",
+    uploading: "दस्तावेज अपलोड हो रहा है...",
+    uploadedTitle: "अपलोड किए गए दस्तावेज",
 
     // Step 14
     step14: "14 में से चरण 14",
@@ -663,6 +673,11 @@ const content = {
     rep_portal_sub: "सिस्टीममध्ये उपलब्ध",
     rep_none: "🚫 कोणतेही मागील अहवाल नाहीत",
     rep_none_sub: "पहिलीच तपासणी",
+    uploadTitle: "वैद्यकीय कागदपत्रे अपलोड करा",
+    uploadSubtitle: "प्रिस्क्रिप्शन, लॅब रिपोर्ट किंवा डिस्चार्ज समरी अपलोड करा (PDF, JPG, PNG)",
+    uploadButton: "अपलोड करण्यासाठी फाइल निवडा",
+    uploading: "कागदपत्र अपलोड होत आहे...",
+    uploadedTitle: "अपलोड केलेली कागदपत्रे",
 
     // Step 14
     step14: "14 पैकी टप्पा 14",
@@ -2091,7 +2106,7 @@ export default function Home() {
                   <p className="question-subtitle">{t.reportsSubtitle}</p>
                 </div>
 
-                <div className="choice-grid">
+                <div className="choice-grid" style={{ marginBottom: "20px" }}>
                   {[
                     { key: "abha", label: t.rep_abha, sub: t.rep_abha_sub },
                     { key: "physical", label: t.rep_physical, sub: t.rep_physical_sub },
@@ -2116,6 +2131,96 @@ export default function Home() {
                       </button>
                     );
                   })}
+                </div>
+
+                <div className="issue-card" style={{ padding: "24px" }}>
+                  <div style={{ marginBottom: "14px" }}>
+                    <div style={{ fontSize: "16px", fontWeight: 700, color: "#113430" }}>
+                      📁 {t.uploadTitle}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "#597773", marginTop: "2px" }}>
+                      {t.uploadSubtitle}
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <label
+                      htmlFor="medical-doc-upload"
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "10px",
+                        padding: "16px 20px",
+                        border: "2px dashed #b7ceca",
+                        borderRadius: "16px",
+                        background: isUploading ? "#f0f7f6" : "#f8faf9",
+                        cursor: isUploading ? "not-allowed" : "pointer",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      <input
+                        id="medical-doc-upload"
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png,.txt,application/pdf,image/*"
+                        style={{ display: "none" }}
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            updateCase("reportStatus", "portal");
+                            handleUploadFile(file);
+                          }
+                          e.target.value = "";
+                        }}
+                      />
+                      <span style={{ fontSize: "20px" }}>📄</span>
+                      <span style={{ fontSize: "15px", fontWeight: 700, color: "#176158" }}>
+                        {isUploading ? t.uploading : t.uploadButton}
+                      </span>
+                    </label>
+
+                    {uploadError && (
+                      <div className="login-error" style={{ margin: 0 }}>
+                        ⚠️ {uploadError}
+                      </div>
+                    )}
+
+                    {uploadedFiles.length > 0 && (
+                      <div style={{ marginTop: "6px" }}>
+                        <div style={{ fontSize: "12px", fontWeight: 700, color: "#55726e", letterSpacing: "0.5px", textTransform: "uppercase", marginBottom: "8px" }}>
+                          {t.uploadedTitle} ({uploadedFiles.length})
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {uploadedFiles.map((file, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "space-between",
+                                padding: "10px 14px",
+                                background: "#edf7f4",
+                                border: "1px solid #b7ceca",
+                                borderRadius: "12px",
+                                fontSize: "14px",
+                                color: "#176158",
+                                fontWeight: 600,
+                              }}
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                <span>✓</span>
+                                <span style={{ textOverflow: "ellipsis", overflow: "hidden" }}>{file.name}</span>
+                              </div>
+                              <span style={{ fontSize: "11px", color: "#52716d", padding: "2px 8px", background: "#ffffff", borderRadius: "8px", border: "1px solid #d4dfdd", flexShrink: 0 }}>
+                                {file.docId}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </>
             )}

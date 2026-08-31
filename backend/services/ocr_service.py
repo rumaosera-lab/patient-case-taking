@@ -1,6 +1,16 @@
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+
+# Load environment variables
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT_DIR / "frontend" / ".env")
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(ROOT_DIR / ".env")
+load_dotenv()
 
 
 class OCRPage(BaseModel):
@@ -42,15 +52,30 @@ def process_document_ocr(document_id: str, file_bytes: bytes, filename: str) -> 
             from google import genai
             client = genai.Client(api_key=api_key)
             mime_type = "application/pdf" if filename.lower().endswith(".pdf") else "image/jpeg"
-            response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=[
-                    genai.types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
-                    "Extract all text from this medical document accurately without altering numbers or medication names."
-                ]
-            )
-            if response and response.text:
-                text_content = response.text
+            candidate_models = [
+                os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+                "gemini-3.5-flash",
+                "gemini-3.6-flash",
+                "gemini-3.7-flash",
+            ]
+            seen_models = set()
+            for model_name in candidate_models:
+                if not model_name or model_name in seen_models:
+                    continue
+                seen_models.add(model_name)
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=[
+                            genai.types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+                            "Extract all text from this medical document accurately without altering numbers or medication names."
+                        ]
+                    )
+                    if response and response.text:
+                        text_content = response.text
+                        break
+                except Exception:
+                    continue
         except Exception:
             pass
 
