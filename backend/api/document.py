@@ -19,7 +19,7 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
 @router.post("/sessions/{session_id}/documents", status_code=status.HTTP_201_CREATED)
-async def upload_document(
+def upload_document(
     session_id: str,
     document_type: DocumentType = Form(..., description="Category of medical document"),
     file: UploadFile = File(..., description="Uploaded medical document file")
@@ -45,7 +45,7 @@ async def upload_document(
         file_name = file.filename or "uploaded_document"
 
         # Read file content safely
-        file_bytes = await file.read()
+        file_bytes = file.file.read()
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
         max_retries = 3
