@@ -29,8 +29,8 @@ load_dotenv()  # Fallback to current working directory .env if present
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Gemini vision/document model (defaults to gemini-2.5-flash)
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Gemini vision/document model (defaults to gemini-3.6-flash)
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
 # Prompt strictly enforces faithful transcription without medical inference or hallucination
 OCR_PROMPT = (
@@ -111,7 +111,6 @@ def extract_text_from_file(
         raise RuntimeError(
             "GEMINI_API_KEY is not set. Ensure GEMINI_API_KEY is configured in backend/.env."
         )
-    genai.configure(api_key=api_key)
 
     engine = "gemini_vision"
     try:

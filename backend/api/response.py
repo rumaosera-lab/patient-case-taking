@@ -5,6 +5,7 @@ from pymongo.errors import PyMongoError, DuplicateKeyError
 
 from backend.database.connection import get_db
 from backend.models.response import ResponseCreate
+from backend.models.session import SessionStatus
 from backend.utils.responses import success_response, error_response
 from backend.utils.id_generator import generate_response_id
 
@@ -29,8 +30,18 @@ def submit_response(session_id: str, payload: ResponseCreate):
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
+        # Validate session status is IN_PROGRESS
+        if session_doc.get("status") != SessionStatus.IN_PROGRESS.value:
+            return error_response(
+                code="INVALID_REQUEST",
+                message=f"Cannot submit response to session with status '{session_doc.get('status')}'",
+                status_code=status.HTTP_400_BAD_REQUEST
+            )
+
         now = datetime.now(timezone.utc).isoformat()
         response_data = payload.model_dump()
+        if hasattr(response_data.get("input_type"), "value"):
+            response_data["input_type"] = response_data["input_type"].value
         response_data["session_id"] = session_id
         response_data["timestamp"] = now
 
@@ -41,6 +52,11 @@ def submit_response(session_id: str, payload: ResponseCreate):
 
             try:
                 db["responses"].insert_one(response_data.copy())
+                # Update session last_updated_at
+                db["sessions"].update_one(
+                    {"session_id": session_id},
+                    {"$set": {"last_updated_at": now}}
+                )
                 # Return standard success response envelope matching contract example
                 response_payload = {
                     "response_id": resp_id,

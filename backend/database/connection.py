@@ -4,11 +4,18 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 from pymongo.database import Database
 
+from pathlib import Path
+
 # Load environment variables
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT_DIR / "frontend" / ".env")
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(ROOT_DIR / ".env")
 load_dotenv()
 
 MONGODB_URI = os.getenv("MONGODB_URI")
-DB_NAME = os.getenv("DB_NAME", "patient_case_taking")
+DB_NAME = os.getenv("MONGODB_DB_NAME") or os.getenv("DB_NAME", "patient_case_taking")
 
 _client: Optional[MongoClient] = None
 
@@ -32,7 +39,8 @@ def get_db() -> Database:
     Returns the MongoDB database instance.
     """
     client = get_client()
-    return client[DB_NAME]
+    db_name = os.getenv("MONGODB_DB_NAME") or os.getenv("DB_NAME", "patient_case_taking")
+    return client[db_name]
 
 
 def check_db_connection() -> bool:

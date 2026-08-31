@@ -1,8 +1,18 @@
 import os
 import re
 import json
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+
+# Load environment variables
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(ROOT_DIR / "frontend" / ".env")
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(ROOT_DIR / ".env")
+load_dotenv()
 
 
 class AIExtractionInput(BaseModel):
@@ -54,8 +64,9 @@ def extract_information_from_response(payload: AIExtractionInput) -> AIExtractio
                 f"   - unmentioned_fields: list of expected fields not mentioned\n"
                 f"   - confidence: float between 0.0 and 1.0\n"
             )
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=model_name,
                 contents=prompt,
                 config=dict(response_mime_type="application/json")
             )
@@ -111,8 +122,9 @@ def extract_medical_information_from_document(
                 f"- procedures: list of strings\n"
                 f"- confidence: float between 0.0 and 1.0\n"
             )
+            model_name = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
+                model=model_name,
                 contents=prompt,
                 config=dict(response_mime_type="application/json")
             )

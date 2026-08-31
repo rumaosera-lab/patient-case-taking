@@ -4,9 +4,8 @@ from pymongo.errors import PyMongoError, DuplicateKeyError
 
 from backend.database.connection import get_db
 from backend.models.session import SessionCreate, SessionUpdate, SessionStatus
-from backend.models.response import ResponseCreate
 from backend.utils.responses import success_response, error_response
-from backend.utils.id_generator import generate_session_id, generate_response_id
+from backend.utils.id_generator import generate_session_id
 
 router = APIRouter()
 
@@ -184,126 +183,6 @@ def update_session(session_id: str, payload: SessionUpdate):
             data=updated_session,
             message="Session updated successfully"
         )
-
-    except PyMongoError as e:
-        return error_response(
-            code="DATABASE_ERROR",
-            message=f"Database operation failed: {str(e)}",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    except Exception as e:
-        return error_response(
-            code="INTERNAL_SERVER_ERROR",
-            message=f"An unexpected error occurred: {str(e)}",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-
-@router.post("/sessions/{session_id}/responses", status_code=status.HTTP_201_CREATED)
-def submit_response(session_id: str, payload: ResponseCreate):
-    """
-    Submits a patient intake response associated with an active session.
-    """
-    try:
-        db = get_db()
-        
-        # Verify session exists
-        session_doc = db["sessions"].find_one({"session_id": session_id})
-        if not session_doc:
-            return error_response(
-                code="SESSION_NOT_FOUND",
-                message=f"Session with ID '{session_id}' not found",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        # Validate session status is IN_PROGRESS
-        if session_doc.get("status") != SessionStatus.IN_PROGRESS.value:
-            return error_response(
-                code="INVALID_REQUEST",
-                message=f"Cannot submit response to session with status '{session_doc.get('status')}'",
-                status_code=status.HTTP_400_BAD_REQUEST
-            )
-
-        now = datetime.now(timezone.utc).isoformat()
-        resp_dict = payload.model_dump()
-        if hasattr(resp_dict.get("input_type"), "value"):
-            resp_dict["input_type"] = resp_dict["input_type"].value
-
-        resp_dict["session_id"] = session_id
-        resp_dict["timestamp"] = now
-
-        max_retries = 3
-        for _ in range(max_retries):
-            response_id = generate_response_id(db)
-            resp_dict["response_id"] = response_id
-
-            try:
-                db["responses"].insert_one(resp_dict.copy())
-                # Update session last_updated_at
-                db["sessions"].update_one(
-                    {"session_id": session_id},
-                    {"$set": {"last_updated_at": now}}
-                )
-
-                response_data = {
-                    "response_id": response_id,
-                    "session_id": session_id,
-                    "question_id": resp_dict["question_id"],
-                    "answer_text": resp_dict["answer_text"],
-                    "input_type": resp_dict["input_type"],
-                    "language": resp_dict["language"],
-                    "timestamp": now
-                }
-                return success_response(
-                    data=response_data,
-                    status_code=status.HTTP_201_CREATED
-                )
-            except DuplicateKeyError:
-                continue
-
-        return error_response(
-            code="DUPLICATE_RESOURCE",
-            message="Failed to generate unique response ID due to high concurrency. Please try again.",
-            status_code=status.HTTP_409_CONFLICT
-        )
-
-    except PyMongoError as e:
-        return error_response(
-            code="DATABASE_ERROR",
-            message=f"Database operation failed: {str(e)}",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-    except Exception as e:
-        return error_response(
-            code="INTERNAL_SERVER_ERROR",
-            message=f"An unexpected error occurred: {str(e)}",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-        )
-
-
-@router.get("/sessions/{session_id}/responses")
-def get_responses(session_id: str):
-    """
-    Retrieves all recorded responses for a session in chronological order.
-    """
-    try:
-        db = get_db()
-        
-        # Verify session exists
-        session_doc = db["sessions"].find_one({"session_id": session_id})
-        if not session_doc:
-            return error_response(
-                code="SESSION_NOT_FOUND",
-                message=f"Session with ID '{session_id}' not found",
-                status_code=status.HTTP_404_NOT_FOUND
-            )
-
-        responses = list(db["responses"].find(
-            {"session_id": session_id},
-            {"_id": 0}
-        ).sort("timestamp", 1))
-
-        return success_response(data=responses)
 
     except PyMongoError as e:
         return error_response(

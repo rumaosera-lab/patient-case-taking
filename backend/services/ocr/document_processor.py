@@ -37,7 +37,7 @@ load_dotenv(BACKEND_DIR / ".env")
 load_dotenv()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
 # Schema-compliant prompt matching ExtractedInformation contract
 EXTRACTION_PROMPT_TEMPLATE = """You are a medical document extraction assistant.
