@@ -23,20 +23,25 @@ export default function DoctorDashboard({ doctorId }: { doctorId: string }) {
         // relevant_history + timeline + documents), with READY_FOR_DOCTOR
         // sessions prioritized first. We trust that order — no
         // client-side re-sorting.
-        setRecords(res.data);
+        setRecords(res.data || []);
       } else {
-        setError(res.error.message);
+        setError(res.error?.message || "Failed to load patient records");
       }
       setLoading(false);
     }
     load();
   }, [doctorId]);
 
-  const filtered = records.filter(
-    ({ patient }) =>
-      patient.name.toLowerCase().includes(search.toLowerCase()) ||
-      patient.patient_id.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = records.filter((rec) => {
+    const p = rec?.patient;
+    if (!p) return false;
+    const name = p.name || "";
+    const pid = p.patient_id || "";
+    return (
+      name.toLowerCase().includes(search.toLowerCase()) ||
+      pid.toLowerCase().includes(search.toLowerCase())
+    );
+  });
 
 return (
   <div className="min-h-screen bg-[#F7FCF8] text-[#123F3B]">

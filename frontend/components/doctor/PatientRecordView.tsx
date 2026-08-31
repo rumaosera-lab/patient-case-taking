@@ -38,7 +38,7 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
       if (res.success) {
         setRecord(res.data);
       } else {
-        setError(res.error.message);
+        setError(res.error?.message || "Failed to load patient record");
       }
       setLoading(false);
     }
@@ -46,23 +46,26 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
   }, [doctorId, patientId]);
 
   async function handleApprove() {
-    if (!record) return;
+    if (!record || !record.current_session?.session_id) return;
     setApproving(true);
     const res = await approveSession(record.current_session.session_id);
     setApproving(false);
     if (res.success) {
       setRecord({
         ...record,
-        current_session: { ...record.current_session, status: res.data.status },
+        current_session: {
+          ...(record.current_session || {}),
+          status: res.data.status,
+        },
         case_summary: {
-          ...record.case_summary,
+          ...(record.case_summary || {}),
           review_status: res.data.review_status,
           reviewed_by: res.data.reviewed_by,
           approved_at: res.data.approved_at,
         },
       });
     } else {
-      setError(res.error.message);
+      setError(res.error?.message || "Failed to approve session");
     }
   }
 
@@ -77,14 +80,64 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
   }
 
   async function saveEdit(fieldName: string) {
-    if (!record) return;
+    if (!record || !record.current_session?.session_id) return;
     setSavingField(fieldName);
     setError(null);
 
     const newValue = editValues[fieldName];
+    let patchPayload: Record<string, unknown> = {};
 
-    // Build PATCH payload — only include changed field
-    const patchPayload = { [fieldName]: newValue };
+    // Transform edited UI value to match API_CONTRACTS.md & backend ClinicalHistoryUpdate schema
+    if (fieldName === "chief_complaint") {
+      patchPayload = {
+        chief_complaint: {
+          value: typeof newValue === "string" ? newValue : "",
+          source: { type: "previous_record", source_id: doctorId },
+        },
+      };
+    } else if (fieldName === "history_of_present_illness") {
+      patchPayload = {
+        history_of_present_illness: {
+          description: {
+            value: typeof newValue === "string" ? newValue : "",
+            source: { type: "previous_record", source_id: doctorId },
+          },
+        },
+      };
+    } else if (fieldName === "relevant_history") {
+      const arr = Array.isArray(newValue) ? newValue : [String(newValue || "")];
+      patchPayload = {
+        past_medical_history: arr.map((item) => ({
+          condition: item,
+          value: item,
+        })),
+      };
+    } else if (fieldName === "current_medications") {
+      const arr = Array.isArray(newValue) ? newValue : [String(newValue || "")];
+      patchPayload = {
+        current_medications: arr.map((item) => ({
+          medicine: item,
+          value: item,
+        })),
+      };
+    } else if (fieldName === "relevant_investigations") {
+      const arr = Array.isArray(newValue) ? newValue : [String(newValue || "")];
+      patchPayload = {
+        review_of_systems: arr.map((item) => ({
+          finding: item,
+          value: item,
+        })),
+      };
+    } else if (fieldName === "allergies") {
+      const valStr = typeof newValue === "string" ? newValue : "";
+      patchPayload = {
+        allergies: valStr.trim()
+          ? [{ allergen: valStr, value: valStr }]
+          : [],
+      };
+    } else {
+      patchPayload = { [fieldName]: newValue };
+    }
 
     const res = await updateSessionHistory(
       record.current_session.session_id,
@@ -94,22 +147,15 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
     setSavingField(null);
 
     if (res.success) {
-      // Update local state with new history
+      // Update local state with new clinical history returned from PATCH /history
       setRecord({
         ...record,
         relevant_history: res.data,
-        case_summary: {
-          ...record.case_summary,
-          structured_summary: {
-            ...record.case_summary.structured_summary,
-            [fieldName]: newValue,
-          },
-        },
       });
       setEditingField(null);
       setEditValues({});
     } else {
-      setError(res.error.message);
+      setError(res.error?.message || "Failed to update clinical history");
     }
   }
 
@@ -127,8 +173,184 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
     );
   if (!record) return null;
 
-  const { patient, current_session, case_summary, timeline, documents } = record;
-  const s = case_summary.structured_summary;
+  const patient = record.patient || {
+    patient_id: patientId,
+    name: "Unknown Patient",
+    gender: "-",
+    date_of_birth: "-",
+    phone: "-",
+    preferred_language: "en",
+    abha_id: null,
+  };
+  const current_session = record.current_session || {
+    session_id: "",
+    patient_id: patientId,
+    status: "IN_PROGRESS" as const,
+    department: "General Medicine",
+    started_at: "",
+    completed_at: null,
+    last_updated_at: "",
+  };
+  const case_summary = record.case_summary || {
+    summary_id: "",
+    patient_id: patientId,
+    session_id: current_session.session_id,
+    summary_text: "",
+    structured_summary: {
+      chief_complaint: "",
+      history_of_present_illness: "",
+      relevant_history: [],
+      current_medications: [],
+      relevant_investigations: [],
+      allergies: "",
+    },
+    generated_at: "",
+    reviewed_by: null,
+    review_status: "GENERATED" as const,
+    doctor_notes: null,
+    approved_at: null,
+  };
+  const s = case_summary.structured_summary || {
+    chief_complaint: "",
+    history_of_present_illness: "",
+    relevant_history: [],
+    current_medications: [],
+    relevant_investigations: [],
+    allergies: "",
+  };
+  const timeline = Array.isArray(record.timeline) ? record.timeline : [];
+  const documents = Array.isArray(record.documents) ? record.documents : [];
+  const rh = record.relevant_history as unknown as Record<string, unknown> | undefined;
+
+  // -------------------------------------------------------------------------
+  // Resolve field values: Prioritize persisted relevant_history with case_summary fallback
+  // -------------------------------------------------------------------------
+
+  // 1. Chief Complaint
+  let resolvedChiefComplaint = s.chief_complaint || "";
+  if (rh?.chief_complaint) {
+    if (typeof rh.chief_complaint === "string" && rh.chief_complaint.trim()) {
+      resolvedChiefComplaint = rh.chief_complaint;
+    } else if (
+      typeof rh.chief_complaint === "object" &&
+      "value" in rh.chief_complaint &&
+      rh.chief_complaint.value
+    ) {
+      resolvedChiefComplaint = String(rh.chief_complaint.value);
+    }
+  }
+
+  // 2. History of Present Illness (HPI)
+  let resolvedHpi = s.history_of_present_illness || "";
+  if (rh?.history_of_present_illness) {
+    if (
+      typeof rh.history_of_present_illness === "string" &&
+      rh.history_of_present_illness.trim()
+    ) {
+      resolvedHpi = rh.history_of_present_illness;
+    } else if (typeof rh.history_of_present_illness === "object") {
+      const hpiObj = rh.history_of_present_illness as Record<string, unknown>;
+      if (
+        hpiObj.description &&
+        typeof hpiObj.description === "object" &&
+        "value" in (hpiObj.description as { value: unknown })
+      ) {
+        resolvedHpi = String((hpiObj.description as { value: unknown }).value);
+      } else {
+        const parts = Object.entries(hpiObj)
+          .map(([k, v]) => {
+            if (v && typeof v === "object" && "value" in (v as { value: unknown })) {
+              return `${k}: ${(v as { value: unknown }).value}`;
+            }
+            return v ? `${k}: ${v}` : null;
+          })
+          .filter(Boolean);
+        if (parts.length > 0) {
+          resolvedHpi = parts.join("; ");
+        }
+      }
+    }
+  }
+
+  // 3. Relevant History (Past Medical History)
+  let resolvedRelevantHistory: string[] = Array.isArray(s.relevant_history)
+    ? s.relevant_history
+    : [];
+  if (
+    Array.isArray(rh?.past_medical_history) &&
+    rh.past_medical_history.length > 0
+  ) {
+    resolvedRelevantHistory = rh.past_medical_history
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const rec = item as Record<string, unknown>;
+          return String(rec.condition || rec.value || rec.name || JSON.stringify(item));
+        }
+        return String(item);
+      })
+      .filter(Boolean);
+  }
+
+  // 4. Current Medications
+  let resolvedMedications: string[] = Array.isArray(s.current_medications)
+    ? s.current_medications
+    : [];
+  if (
+    Array.isArray(rh?.current_medications) &&
+    rh.current_medications.length > 0
+  ) {
+    resolvedMedications = rh.current_medications
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const rec = item as Record<string, unknown>;
+          if (rec.medicine) {
+            const parts = [rec.medicine, rec.dosage, rec.frequency].filter(Boolean);
+            return parts.map(String).join(" ");
+          }
+          return String(rec.value || rec.name || JSON.stringify(item));
+        }
+        return String(item);
+      })
+      .filter(Boolean);
+  }
+
+  // 5. Relevant Investigations (Review of Systems)
+  let resolvedInvestigations: string[] = Array.isArray(s.relevant_investigations)
+    ? s.relevant_investigations
+    : [];
+  if (
+    Array.isArray(rh?.review_of_systems) &&
+    rh.review_of_systems.length > 0
+  ) {
+    resolvedInvestigations = rh.review_of_systems
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const rec = item as Record<string, unknown>;
+          return String(rec.finding || rec.value || rec.system || JSON.stringify(item));
+        }
+        return String(item);
+      })
+      .filter(Boolean);
+  }
+
+  // 6. Allergies
+  let resolvedAllergies = s.allergies || "";
+  if (Array.isArray(rh?.allergies) && rh.allergies.length > 0) {
+    resolvedAllergies = rh.allergies
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const rec = item as Record<string, unknown>;
+          return String(rec.allergen || rec.value || rec.name || JSON.stringify(item));
+        }
+        return String(item);
+      })
+      .filter(Boolean)
+      .join(", ");
+  }
 
   return (
     <div className="min-h-screen bg-[#F7FCF8] text-[#123F3B]">
@@ -157,10 +379,14 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
             <EditableField
               label="Chief Complaint"
               fieldName="chief_complaint"
-              value={s.chief_complaint}
+              value={resolvedChiefComplaint}
               isEditing={editingField === "chief_complaint"}
-              editValue={editValues["chief_complaint"] as string}
-              onEdit={() => startEdit("chief_complaint", s.chief_complaint)}
+              editValue={
+                (editValues["chief_complaint"] as string) !== undefined
+                  ? (editValues["chief_complaint"] as string)
+                  : resolvedChiefComplaint
+              }
+              onEdit={() => startEdit("chief_complaint", resolvedChiefComplaint)}
               onCancel={cancelEdit}
               onSave={() => saveEdit("chief_complaint")}
               onChange={(v) => setEditValues({ ...editValues, chief_complaint: v })}
@@ -170,11 +396,15 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
             <EditableField
               label="History of Present Illness"
               fieldName="history_of_present_illness"
-              value={s.history_of_present_illness}
+              value={resolvedHpi}
               isEditing={editingField === "history_of_present_illness"}
-              editValue={editValues["history_of_present_illness"] as string}
+              editValue={
+                (editValues["history_of_present_illness"] as string) !== undefined
+                  ? (editValues["history_of_present_illness"] as string)
+                  : resolvedHpi
+              }
               onEdit={() =>
-                startEdit("history_of_present_illness", s.history_of_present_illness)
+                startEdit("history_of_present_illness", resolvedHpi)
               }
               onCancel={cancelEdit}
               onSave={() => saveEdit("history_of_present_illness")}
@@ -188,10 +418,14 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
             <EditableListField
               label="Relevant History"
               fieldName="relevant_history"
-              items={s.relevant_history}
+              items={resolvedRelevantHistory}
               isEditing={editingField === "relevant_history"}
-              editValue={editValues["relevant_history"] as string[]}
-              onEdit={() => startEdit("relevant_history", s.relevant_history)}
+              editValue={
+                (editValues["relevant_history"] as string[]) !== undefined
+                  ? (editValues["relevant_history"] as string[])
+                  : resolvedRelevantHistory
+              }
+              onEdit={() => startEdit("relevant_history", resolvedRelevantHistory)}
               onCancel={cancelEdit}
               onSave={() => saveEdit("relevant_history")}
               onChange={(v) =>
@@ -203,10 +437,14 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
             <EditableListField
               label="Current Medications"
               fieldName="current_medications"
-              items={s.current_medications}
+              items={resolvedMedications}
               isEditing={editingField === "current_medications"}
-              editValue={editValues["current_medications"] as string[]}
-              onEdit={() => startEdit("current_medications", s.current_medications)}
+              editValue={
+                (editValues["current_medications"] as string[]) !== undefined
+                  ? (editValues["current_medications"] as string[])
+                  : resolvedMedications
+              }
+              onEdit={() => startEdit("current_medications", resolvedMedications)}
               onCancel={cancelEdit}
               onSave={() => saveEdit("current_medications")}
               onChange={(v) =>
@@ -218,11 +456,15 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
             <EditableListField
               label="Relevant Investigations"
               fieldName="relevant_investigations"
-              items={s.relevant_investigations}
+              items={resolvedInvestigations}
               isEditing={editingField === "relevant_investigations"}
-              editValue={editValues["relevant_investigations"] as string[]}
+              editValue={
+                (editValues["relevant_investigations"] as string[]) !== undefined
+                  ? (editValues["relevant_investigations"] as string[])
+                  : resolvedInvestigations
+              }
               onEdit={() =>
-                startEdit("relevant_investigations", s.relevant_investigations)
+                startEdit("relevant_investigations", resolvedInvestigations)
               }
               onCancel={cancelEdit}
               onSave={() => saveEdit("relevant_investigations")}
@@ -235,10 +477,14 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
             <EditableField
               label="Allergies"
               fieldName="allergies"
-              value={s.allergies}
+              value={resolvedAllergies}
               isEditing={editingField === "allergies"}
-              editValue={editValues["allergies"] as string}
-              onEdit={() => startEdit("allergies", s.allergies)}
+              editValue={
+                (editValues["allergies"] as string) !== undefined
+                  ? (editValues["allergies"] as string)
+                  : resolvedAllergies
+              }
+              onEdit={() => startEdit("allergies", resolvedAllergies)}
               onCancel={cancelEdit}
               onSave={() => saveEdit("allergies")}
               onChange={(v) => setEditValues({ ...editValues, allergies: v })}

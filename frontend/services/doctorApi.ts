@@ -169,11 +169,49 @@ async function apiFetch<T>(
   path: string,
   options?: RequestInit
 ): Promise<ApiResponse<T>> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
-    ...options,
-  });
-  return res.json();
+  try {
+    const res = await fetch(`${BASE_URL}${path}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(options?.headers || {}),
+      },
+      ...options,
+    });
+
+    const data = await res.json();
+    if (!res.ok && (!data || !("success" in data))) {
+      let msg = res.statusText || "Request failed";
+      if (data && data.detail) {
+        if (Array.isArray(data.detail)) {
+          msg = data.detail
+            .map((d: { msg?: string }) => d.msg || JSON.stringify(d))
+            .join(", ");
+        } else if (typeof data.detail === "string") {
+          msg = data.detail;
+        }
+      }
+      return {
+        success: false,
+        error: {
+          code: `HTTP_${res.status}`,
+          message: msg,
+        },
+      };
+    }
+    return data as ApiResponse<T>;
+  } catch (err) {
+    console.warn(`Doctor API request to ${path} failed:`, err);
+    return {
+      success: false,
+      error: {
+        code: "NETWORK_ERROR",
+        message:
+          err instanceof Error
+            ? err.message
+            : "Could not connect to FastAPI backend server",
+      },
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------

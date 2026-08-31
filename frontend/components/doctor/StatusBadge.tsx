@@ -2,7 +2,7 @@
 
 import type { SessionStatus } from "@/services/doctorApi";
 
-const STYLES: Record<SessionStatus, string> = {
+const STYLES: Record<string, string> = {
   IN_PROGRESS:
     "border-[#D5E8E3] bg-[#EDF7F4] text-[#367A72]",
   PROCESSING:
@@ -15,7 +15,7 @@ const STYLES: Record<SessionStatus, string> = {
     "border-[#D5E8E3] bg-[#EDF7F4] text-[#367A72]",
 };
 
-const LABELS: Record<SessionStatus, string> = {
+const LABELS: Record<string, string> = {
   IN_PROGRESS: "In Progress",
   PROCESSING: "Processing",
   COMPLETED: "Completed",
@@ -23,7 +23,11 @@ const LABELS: Record<SessionStatus, string> = {
   REVIEWED: "Reviewed",
 };
 
-export default function StatusBadge({ status }: { status: SessionStatus }) {
+export default function StatusBadge({ status }: { status?: SessionStatus | string }) {
+  const safeStatus = status || "IN_PROGRESS";
+  const style = STYLES[safeStatus] || "border-[#D5E8E3] bg-[#EDF7F4] text-[#367A72]";
+  const label = LABELS[safeStatus] || safeStatus;
+
   return (
     <span
       className={`
@@ -36,10 +40,10 @@ export default function StatusBadge({ status }: { status: SessionStatus }) {
         text-[10px]
         font-medium
         tracking-[0.02em]
-        ${STYLES[status]}
+        ${style}
       `}
     >
-      {LABELS[status]}
+      {label}
     </span>
   );
 }

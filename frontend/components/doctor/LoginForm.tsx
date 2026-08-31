@@ -32,7 +32,7 @@ export default function LoginForm() {
       // Redirect to dashboard
       router.push("/doctor/dashboard");
     } else {
-      setError(res.error.message);
+      setError(res.error?.message || "Login failed. Please check your credentials.");
     }
   }
 
