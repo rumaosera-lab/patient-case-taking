@@ -946,30 +946,40 @@ export default function Home() {
       audioRef.current = null;
     }
 
-    const textToSpeak = voiceText[language as "English" | "Hindi"];
+    let textToSpeak = voiceText[language as "English" | "Hindi"];
     if (!textToSpeak) return;
 
-    const speech = new SpeechSynthesisUtterance(textToSpeak);
     const voices = window.speechSynthesis.getVoices();
+    let selectedVoice: SpeechSynthesisVoice | undefined;
+    let selectedLang = "en-IN";
 
     if (language === "English") {
-      const englishVoice = voices.find((v) =>
+      selectedVoice = voices.find((v) =>
         v.lang.toLowerCase().startsWith("en")
       );
-      if (englishVoice) {
-        speech.voice = englishVoice;
-      }
-      speech.lang = "en-IN";
+      selectedLang = "en-IN";
     } else if (language === "Hindi") {
       const hindiVoice = voices.find((v) =>
         v.lang.toLowerCase().startsWith("hi")
       );
       if (hindiVoice) {
-        speech.voice = hindiVoice;
+        selectedVoice = hindiVoice;
+        selectedLang = "hi-IN";
+      } else {
+        selectedVoice = voices.find((v) =>
+          v.lang.toLowerCase().startsWith("en")
+        );
+        selectedLang = "en-IN";
+        textToSpeak =
+          "Namaste. Kripya apni pasandida bhasha chunein. Aage badhne ke liye apni 14 anko ki ABHA ID aur passcode darj karein.";
       }
-      speech.lang = "hi-IN";
     }
 
+    const speech = new SpeechSynthesisUtterance(textToSpeak);
+    if (selectedVoice) {
+      speech.voice = selectedVoice;
+    }
+    speech.lang = selectedLang;
     speech.rate = 0.85;
     speech.pitch = 1;
     speech.volume = 1;
