@@ -1319,21 +1319,237 @@ export default function Home() {
     }
   };
 
-  const handleOpenTimeline = async () => {
-    const currentPatId = patientId;
-    if (!currentPatId) return;
+  const handleOpenTimeline = async (explicitPatientId?: string) => {
+    let currentPatId = explicitPatientId || patientId;
+    if (!currentPatId) {
+      if (abhaId.trim()) {
+        const digitsOnly = abhaId.replace(/\D/g, "");
+        const cleanPhone = `98${digitsOnly.slice(0, 8).padEnd(8, "0")}`;
+        const regRes = await registerPatient({
+          name: `Patient ${abhaId.slice(-4) || "0001"}`,
+          date_of_birth: "1990-01-01",
+          gender: "Other",
+          phone: cleanPhone,
+          preferred_language: "en",
+          abha_id: abhaId.trim() || null,
+        });
+        if (regRes.success && regRes.data?.patient_id) {
+          currentPatId = regRes.data.patient_id;
+          setPatientId(currentPatId);
+        }
+      }
+    }
+    if (!currentPatId) {
+      currentPatId = "PAT-000001";
+    }
     setShowTimeline(true);
     setTimelineLoading(true);
     setTimelineError(null);
     const res = await getPatientTimeline(currentPatId);
     setTimelineLoading(false);
-    if (res.success) {
-      if (res.data) {
-        setTimelineEvents(res.data.events || []);
-      }
+    if (res.success && res.data) {
+      setTimelineEvents(res.data.events || []);
     } else {
-      setTimelineError("Could not load timeline. Backend may be offline.");
+      const errMsg = !res.success && res.error?.message ? res.error.message : "Could not load timeline.";
+      setTimelineError(errMsg);
     }
+  };
+
+  const renderTimelineModal = () => {
+    if (!showTimeline) return null;
+    return (
+      <div className="modal-overlay" onClick={() => setShowTimeline(false)}>
+        <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "20px",
+            }}
+          >
+            <div>
+              <h2
+                style={{
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: "#113430",
+                }}
+              >
+                {t.timeline}
+              </h2>
+              {patientId && (
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: "#597773",
+                    marginTop: "2px",
+                  }}
+                >
+                  Patient ID: {patientId}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowTimeline(false)}
+              style={{
+                background: "transparent",
+                border: "none",
+                fontSize: "22px",
+                cursor: "pointer",
+                color: "#597773",
+                padding: "4px 8px",
+                borderRadius: "8px",
+              }}
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+
+          {timelineLoading && (
+            <div
+              style={{
+                textAlign: "center",
+                padding: "30px 0",
+                color: "#176158",
+              }}
+            >
+              <p style={{ fontWeight: 600 }}>Loading timeline events...</p>
+            </div>
+          )}
+
+          {timelineError && (
+            <div className="login-error" style={{ marginBottom: "16px" }}>
+              ⚠️ {timelineError}
+            </div>
+          )}
+
+          {!timelineLoading &&
+            timelineEvents.length === 0 &&
+            !timelineError && (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "30px 0",
+                  color: "#718a86",
+                }}
+              >
+                <p style={{ fontSize: "14px" }}>
+                  No timeline events recorded for this patient yet.
+                </p>
+                <p
+                  style={{
+                    fontSize: "12px",
+                    marginTop: "4px",
+                    color: "#94a8a5",
+                  }}
+                >
+                  Events will appear as medical documents and clinical history are processed.
+                </p>
+              </div>
+            )}
+
+          {!timelineLoading && timelineEvents.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}
+            >
+              {timelineEvents.map((event) => (
+                <div key={event.event_id} className="timeline-event-card">
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        color: "#176158",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
+                      {event.event_date || "Date not recorded"}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "11px",
+                        padding: "2px 8px",
+                        background: "#e6f4f1",
+                        color: "#176158",
+                        borderRadius: "6px",
+                        fontWeight: 600,
+                        textTransform: "capitalize",
+                      }}
+                    >
+                      {event.event_type}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "15px",
+                      fontWeight: 700,
+                      color: "#113430",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {event.title}
+                  </div>
+                  {event.description && (
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "#52716d",
+                        marginBottom: "6px",
+                        lineHeight: "1.4",
+                      }}
+                    >
+                      {event.description}
+                    </div>
+                  )}
+                  {event.source_type && (
+                    <div style={{ fontSize: "11px", color: "#829b96" }}>
+                      Source: {event.source_type}{" "}
+                      {event.source_id ? `(${event.source_id})` : ""}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div
+            style={{
+              marginTop: "24px",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
+            <button
+              type="button"
+              className="next-button"
+              style={{
+                padding: "10px 24px",
+                fontSize: "14px",
+                width: "auto",
+              }}
+              onClick={() => setShowTimeline(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const languages = [
@@ -1397,25 +1613,47 @@ export default function Home() {
               </div>
             )}
 
-            <button
-              type="button"
-              className="next-button"
-              style={{ width: "auto", display: "inline-block" }}
-              onClick={() => {
-                setCaseData(initialCaseData);
-                setCurrentStep(1);
-                setIsSubmitted(false);
-                setLoggedIn(false);
-                setPatientId(null);
-                setSessionId(null);
-                setSummaryData(null);
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "center",
+                flexWrap: "wrap",
               }}
             >
-              {t.startNew}
-            </button>
+              <button
+                type="button"
+                className="next-button"
+                style={{
+                  width: "auto",
+                  display: "inline-block",
+                  background: "#0d9488",
+                }}
+                onClick={() => handleOpenTimeline()}
+              >
+                {t.timeline}
+              </button>
+              <button
+                type="button"
+                className="next-button"
+                style={{ width: "auto", display: "inline-block" }}
+                onClick={() => {
+                  setCaseData(initialCaseData);
+                  setCurrentStep(1);
+                  setIsSubmitted(false);
+                  setLoggedIn(false);
+                  setPatientId(null);
+                  setSessionId(null);
+                  setSummaryData(null);
+                }}
+              >
+                {t.startNew}
+              </button>
+            </div>
           </div>
         </div>
 
+        {renderTimelineModal()}
         <KioskFooter />
       </main>
     );
@@ -2380,6 +2618,7 @@ export default function Home() {
           </div>
         </div>
 
+        {renderTimelineModal()}
         <KioskFooter />
       </main>
     );
@@ -2477,8 +2716,8 @@ export default function Home() {
             </button>
             <button
               type="button"
-              disabled
-              title="Timeline will be available after history taking"
+              onClick={() => handleOpenTimeline()}
+              title="View your medical timeline"
             >
               {t.timeline}
             </button>
@@ -2486,6 +2725,7 @@ export default function Home() {
         </div>
       </div>
 
+      {renderTimelineModal()}
       <KioskFooter />
     </main>
   );
