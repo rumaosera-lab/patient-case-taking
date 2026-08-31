@@ -158,6 +158,9 @@ def get_complete_patient_record(doctor_id: str, patient_id: str):
             {"patient_id": patient_id},
             {"_id": 0}
         ).sort("uploaded_at", -1))
+        for doc in documents:
+            if not doc.get("file_url") and doc.get("document_id"):
+                doc["file_url"] = f"/api/v1/documents/{doc.get('document_id')}/file"
 
         record_data = {
             "patient": patient_doc,

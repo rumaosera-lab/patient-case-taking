@@ -546,33 +546,42 @@ export default function PatientRecordView({ doctorId, patientId }: Props) {
             <p className="text-[14px] text-[#718A86]">No documents uploaded.</p>
           )}
           <div className="flex flex-col gap-3">
-            {documents.map((doc) => (
-              <a
-                key={doc.document_id}
-                href={doc.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="
-                  flex
-                  items-center
-                  justify-between
-                  rounded-[16px]
-                  border
-                  border-[#DCE9E5]
-                  bg-white
-                  px-5
-                  py-4
-                  transition-colors
-                  hover:border-[#BDD5D0]
-                  hover:bg-[#FBFDFC]
-                "
-              >
-                <span className="text-[14px] font-medium text-[#123F3B]">
-                  {doc.file_name}
-                </span>
-                <span className="text-[12px] text-[#829B96]">{doc.document_type}</span>
-              </a>
-            ))}
+            {documents.map((doc) => {
+              const apiBase =
+                process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
+              let docUrl = doc.file_url || `${apiBase}/documents/${doc.document_id}/file`;
+              if (docUrl.startsWith("/")) {
+                const backendOrigin = apiBase.replace(/\/api\/v1\/?$/, "");
+                docUrl = `${backendOrigin}${docUrl}`;
+              }
+              return (
+                <a
+                  key={doc.document_id}
+                  href={docUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="
+                    flex
+                    items-center
+                    justify-between
+                    rounded-[16px]
+                    border
+                    border-[#DCE9E5]
+                    bg-white
+                    px-5
+                    py-4
+                    transition-colors
+                    hover:border-[#BDD5D0]
+                    hover:bg-[#FBFDFC]
+                  "
+                >
+                  <span className="text-[14px] font-medium text-[#123F3B]">
+                    {doc.file_name}
+                  </span>
+                  <span className="text-[12px] text-[#829B96]">{doc.document_type}</span>
+                </a>
+              );
+            })}
           </div>
         </section>
 

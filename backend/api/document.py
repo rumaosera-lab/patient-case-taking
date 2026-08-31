@@ -1,5 +1,8 @@
+import mimetypes
 from datetime import datetime, timezone
+from pathlib import Path
 from fastapi import APIRouter, File, Form, UploadFile, status
+from fastapi.responses import FileResponse
 from pymongo.errors import PyMongoError, DuplicateKeyError
 
 from backend.database.connection import get_db
@@ -10,6 +13,9 @@ from backend.services.ocr_service import process_document_ocr
 from backend.services.ai_service import extract_medical_information_from_document
 
 router = APIRouter()
+
+UPLOAD_DIR = Path(__file__).resolve().parents[2] / "uploads"
+ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
 @router.post("/sessions/{session_id}/documents", status_code=status.HTTP_201_CREATED)
@@ -40,17 +46,26 @@ async def upload_document(
 
         # Read file content safely
         file_bytes = await file.read()
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
         max_retries = 3
         for _ in range(max_retries):
             document_id = generate_document_id(db)
+            saved_file_path = UPLOAD_DIR / f"{document_id}_{file_name}"
+            try:
+                with open(saved_file_path, "wb") as f:
+                    f.write(file_bytes)
+            except Exception:
+                pass
+
+            file_url = f"/api/v1/documents/{document_id}/file"
             doc_record = {
                 "document_id": document_id,
                 "patient_id": patient_id,
                 "session_id": session_id,
                 "file_name": file_name,
                 "document_type": doc_type_val,
-                "file_url": None,
+                "file_url": file_url,
                 "processing_status": DocumentProcessingStatus.UPLOADED.value,
                 "uploaded_at": now
             }
@@ -163,7 +178,75 @@ def get_document(document_id: str):
                 status_code=status.HTTP_404_NOT_FOUND
             )
 
+        if not doc.get("file_url"):
+            doc["file_url"] = f"/api/v1/documents/{document_id}/file"
+
         return success_response(data=doc)
+
+    except PyMongoError as e:
+        return error_response(
+            code="DATABASE_ERROR",
+            message=f"Database operation failed: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+    except Exception as e:
+        return error_response(
+            code="INTERNAL_SERVER_ERROR",
+            message=f"An unexpected error occurred: {str(e)}",
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@router.get("/documents/{document_id}/file")
+def get_document_file(document_id: str):
+    """
+    Retrieves the raw document file (PDF, image, etc.) for viewing in the browser.
+    """
+    try:
+        db = get_db()
+        doc = db["documents"].find_one({"document_id": document_id})
+        file_name = doc.get("file_name", "document.pdf") if doc else "demo_medical_report.pdf"
+
+        candidate_paths = [
+            UPLOAD_DIR / f"{document_id}_{file_name}",
+            UPLOAD_DIR / f"{document_id}.pdf",
+            UPLOAD_DIR / file_name,
+            ROOT_DIR / file_name,
+            ROOT_DIR / "demo_medical_report.pdf",
+        ]
+
+        found_path = None
+        for p in candidate_paths:
+            if p.exists() and p.is_file():
+                found_path = p
+                break
+
+        if not found_path:
+            return error_response(
+                code="DOCUMENT_NOT_FOUND",
+                message=f"File for document '{document_id}' not found on server",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        mime_type, _ = mimetypes.guess_type(str(found_path))
+        if not mime_type:
+            if str(found_path).lower().endswith(".pdf"):
+                mime_type = "application/pdf"
+            elif str(found_path).lower().endswith((".jpg", ".jpeg")):
+                mime_type = "image/jpeg"
+            elif str(found_path).lower().endswith(".png"):
+                mime_type = "image/png"
+            else:
+                mime_type = "application/octet-stream"
+
+        return FileResponse(
+            path=str(found_path),
+            media_type=mime_type,
+            filename=file_name,
+            headers={
+                "Content-Disposition": f'inline; filename="{file_name}"'
+            }
+        )
 
     except PyMongoError as e:
         return error_response(
